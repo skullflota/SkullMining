@@ -55,6 +55,10 @@ class Uploader:
             self._save()
         self.q.put({"_kick": True})
 
+    def kick(self) -> None:
+        """Reintentar ya (p. ej. tras cambiar la URL o la clave)."""
+        self.q.put({"_kick": True, "_reset": True})
+
     def pending_count(self) -> int:
         with self.lock:
             return len(self.pending)
@@ -79,6 +83,7 @@ class Uploader:
     def _post(self, item: dict) -> bool:
         url, token = self.get_url().strip(), self.get_token().strip()
         if not url or not token or requests is None:
+            self.log.info("Sin URL o clave de la flota: no se envía")
             self.on_status("Falta configurar URL o clave de la flota")
             return False
         body = {"token": token, "kind": item["kind"], "data": item["data"]}
@@ -87,6 +92,7 @@ class Uploader:
                               headers={"Content-Type": "text/plain;charset=utf-8"})
             txt = r.text or ""
             if r.status_code == 200 and '"ok":true' in txt.replace(" ", ""):
+                self.log.info(f"Enviado a la hoja: {item['kind']}")
                 return True
             self.log.warning(f"Respuesta inesperada ({r.status_code}): {txt[:200]}")
             if '"error":"token"' in txt.replace(" ", ""):
@@ -104,6 +110,8 @@ class Uploader:
                 msg = {"_kick": True}
             if msg is None:
                 break
+            if msg.get("_reset"):
+                delay = RETRY_MIN_S
             while not self.stop_flag:
                 with self.lock:
                     if not self.pending:

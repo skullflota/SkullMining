@@ -1,5 +1,6 @@
-  __pycache__/
-  *.pyc
-  pending.json
-  live_session.json
-  *.tmp
+__pycache__/
+*.pyc
+pending.json
+live_session.json
+*.tmp
+tests/payloads.json

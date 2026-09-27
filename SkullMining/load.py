@@ -117,6 +117,12 @@ def _refresh_label(frame: tk.Frame) -> None:
     frame.after(2000, _refresh_label, frame)
 
 
+def _entry(parent, **kw):
+    """Campo de texto: EDMC moderno usa nb.EntryMenu; versiones viejas, nb.Entry."""
+    cls = getattr(nb, "EntryMenu", None) or getattr(nb, "Entry", None) or tk.Entry
+    return cls(parent, **kw)
+
+
 def plugin_prefs(parent, cmdr: str, is_beta: bool):
     f = nb.Frame(parent)
     S.enabled_var = tk.IntVar(value=1 if _enabled() else 0)
@@ -127,11 +133,11 @@ def plugin_prefs(parent, cmdr: str, is_beta: bool):
     nb.Checkbutton(f, text="Enviar mis sesiones de minería en superficie a la flota Skull",
                    variable=S.enabled_var).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=10, pady=(10, 4))
     nb.Label(f, text="URL de la flota").grid(row=1, column=0, sticky=tk.W, padx=10)
-    nb.Entry(f, textvariable=S.url_var, width=70).grid(row=1, column=1, sticky=tk.EW, padx=10)
+    _entry(f, textvariable=S.url_var, width=70).grid(row=1, column=1, sticky=tk.EW, padx=10)
     nb.Label(f, text="Clave de la flota").grid(row=2, column=0, sticky=tk.W, padx=10)
-    nb.Entry(f, textvariable=S.token_var, width=30, show="•").grid(row=2, column=1, sticky=tk.W, padx=10)
+    _entry(f, textvariable=S.token_var, width=30, show="•").grid(row=2, column=1, sticky=tk.W, padx=10)
     nb.Label(f, text="Alias (opcional)").grid(row=3, column=0, sticky=tk.W, padx=10)
-    nb.Entry(f, textvariable=S.alias_var, width=30).grid(row=3, column=1, sticky=tk.W, padx=10)
+    _entry(f, textvariable=S.alias_var, width=30).grid(row=3, column=1, sticky=tk.W, padx=10)
     nb.Label(f, text=("Solo se envían sesiones en superficie en las que has refinado algo, y ventas de "
                       "minerales. Si pones un alias, se usa en lugar de tu nombre de comandante."),
              wraplength=500, justify=tk.LEFT).grid(row=4, column=0, columnspan=2, sticky=tk.W, padx=10, pady=8)
@@ -145,6 +151,10 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
         config.set(CFG_TOKEN, S.token_var.get().strip())
         config.set(CFG_ALIAS, S.alias_var.get().strip())
         config.set(CFG_ENABLED, int(S.enabled_var.get()))
+        logger.info("Ajustes de Skull Mining guardados (URL %s, clave %s)",
+                    "sí" if S.url_var.get().strip() else "no", "sí" if S.token_var.get().strip() else "no")
+        if S.uploader:
+            S.uploader.kick()
 
 
 def journal_entry(cmdr, is_beta, system, station, entry, state):

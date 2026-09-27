@@ -1,4 +1,4 @@
-# Skull Mining: plugin de EDMC para la flota Skull (v0.3.1)
+# Skull Mining: plugin de EDMC para la flota Skull (v0.3.3)
 
 Registra automáticamente las sesiones de minería en superficie con el Rhino y las envía a una hoja de Google compartida por la flota. De cada sesión calcula:
 
