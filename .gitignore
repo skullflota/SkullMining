@@ -1,0 +1,5 @@
+  __pycache__/
+  *.pyc
+  pending.json
+  live_session.json
+  *.tmp
