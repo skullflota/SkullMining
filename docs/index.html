@@ -101,18 +101,21 @@
   .card .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 10px; font-size: 15px; }
   .card .grid .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
 
-  .top10 { margin: 0 0 18px; }
-  .top10 h2 { font-family: "Orbitron", sans-serif; font-size: 15px; letter-spacing: .1em; color: #fff; margin: 0 0 10px; font-weight: 600; }
+  .top10 { margin: 0 0 18px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 8px; }
+  .top10 h2 { font-family: "Orbitron", sans-serif; font-size: 15px; letter-spacing: .1em; color: #fff; margin: 0 0 8px; font-weight: 600; }
   .top10 h2 span { color: var(--muted); font-family: "Rajdhani", sans-serif; letter-spacing: 0; font-size: 14px; font-weight: 500; margin-left: 8px; }
-  .top10 ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-  .top10 li { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; min-width: 0; position: relative; }
-  .top10 li .pos { position: absolute; top: 8px; right: 10px; font-family: "Orbitron", sans-serif; font-weight: 800; color: var(--muted); font-size: 13px; }
-  .top10 li:nth-child(1) .pos { color: #ffd166; } .top10 li:nth-child(2) .pos { color: #cfd8e3; } .top10 li:nth-child(3) .pos { color: #e6a06b; }
-  .top10 li .m { font-weight: 700; color: #fff; font-size: 17px; padding-right: 26px; }
-  .top10 li .p { color: var(--accent); font-weight: 700; }
-  .top10 li .where { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
-  .top10 li .meta { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 13px; gap: 6px; }
-  .top10 li .meta { flex-wrap: wrap; row-gap: 4px; }
+  .top10 ol { list-style: none; margin: 0; padding: 0; }
+  .top10 li { display: grid; grid-template-columns: 34px minmax(120px, 1.1fr) 110px minmax(0, 2fr) 120px 110px 100px; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .top10 li:first-child { border-top: 0; }
+  .top10 li.head { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .07em; padding: 2px 0 6px; }
+  .top10 .pos { font-family: "Orbitron", sans-serif; font-weight: 800; color: var(--muted); text-align: center; }
+  .top10 li.r1 .pos { color: #ffd166; } .top10 li.r2 .pos { color: #cfd8e3; } .top10 li.r3 .pos { color: #e6a06b; }
+  .top10 .m { font-weight: 700; color: #fff; font-size: 17px; }
+  .top10 .p { color: var(--accent); font-weight: 700; white-space: nowrap; }
+  .top10 .where { min-width: 0; }
+  .top10 .where div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top10 .where .b { color: var(--muted); font-size: 13px; }
+  .top10 .v { text-align: right; font-family: "Orbitron", sans-serif; font-size: 14px; color: var(--text); white-space: nowrap; }
   .top10 .rigs i { width: 8px; height: 8px; }
 
   footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
@@ -124,7 +127,11 @@
     table { display: none; }
     .cards { display: block; }
     .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .top10 ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .top10 li { grid-template-columns: 28px minmax(0, 1fr) auto; row-gap: 2px; }
+    .top10 li.head { display: none; }
+    .top10 li .where { grid-column: 2 / -1; }
+    .top10 li .rg, .top10 li .v, .top10 li .tr { grid-column: auto; }
+    .top10 li .extra { grid-column: 2 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; }
     .updated { text-align: left; }
   }
 </style>
@@ -362,14 +369,23 @@
       return num(b.price) - num(a.price) || num(b.rigs) - num(a.rigs) || num(b.value) - num(a.value);
     }).slice(0, 10);
     $("top10").hidden = !list.length;
-    $("top10list").innerHTML = list.map(function (s, i) {
-      return '<li><span class="pos">' + (i + 1) + '</span>' +
-        '<div class="m">' + esc(s.mineral) + '</div>' +
-        '<div class="p">' + credits(s.price) + '/t</div>' +
-        '<div class="where" title="' + esc(s.body) + '">' + esc(s.body || s.system) + '</div>' +
-        '<div class="meta">' + rigsDots(s.rigs) + terrainBadge(s.terrain) + '</div></li>';
+    var mobile = window.matchMedia("(max-width: 900px)").matches;
+    var head = '<li class="head"><span></span><span>Mineral</span><span>Precio</span><span>Ubicación</span>' +
+      '<span>Plataformas</span><span style="text-align:right">Valor/vuelta</span><span>Terreno</span></li>';
+    $("top10list").innerHTML = (mobile ? "" : head) + list.map(function (s, i) {
+      var where = '<div class="where"><div>' + esc(s.system) + '</div><div class="b">' + esc(s.body) + "</div></div>";
+      if (mobile) {
+        return '<li class="r' + (i + 1) + '"><span class="pos">' + (i + 1) + '</span><span class="m">' + esc(s.mineral) + '</span><span class="p">' +
+          credits(s.price) + "/t</span>" + where + '<div class="extra">' + rigsDots(s.rigs) + terrainBadge(s.terrain) +
+          '<span class="muted">' + credits(s.value) + "/vuelta</span></div></li>";
+      }
+      return '<li class="r' + (i + 1) + '"><span class="pos">' + (i + 1) + '</span><span class="m">' + esc(s.mineral) + '</span>' +
+        '<span class="p">' + credits(s.price) + "/t</span>" + where +
+        '<span class="rg">' + rigsDots(s.rigs) + '</span><span class="v">' + credits(s.value) + "</span>" +
+        '<span class="tr">' + terrainBadge(s.terrain) + "</span></li>";
     }).join("");
   }
+  window.addEventListener("resize", function () { if (state.sites.length) renderTop10(); });
 
   function load(data) {
     state.sites = (data && data.sites) || [];
