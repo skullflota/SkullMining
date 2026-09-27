@@ -1,0 +1,70 @@
+{ "timestamp":"2026-09-27T18:12:50Z", "event":"SAASignalsFound", "BodyName":"Pegasi Sector JN-S b4-7 B 4", "SystemAddress":16061164299681, "BodyID":12, "Signals":[ { "Type":"$SAA_SignalType_Biological;", "Type_Localised":"Biological", "Count":1 }, { "Type":"$PlanetaryMiningLocation_Name;", "Type_Localised":"Planetary Mining Location", "Count":18 }, { "Type":"$SAA_SignalType_Human;", "Type_Localised":"Human", "Count":6 } ], "Genuses":[ { "Genus":"$Codex_Ent_Stratum_Genus_Name;", "Genus_Localised":"Stratum" } ] }
+{ "timestamp":"2026-09-27T18:12:50Z", "event":"SAASignalsFound", "BodyName":"Pegasi Sector JN-S b4-7 B 4 a", "SystemAddress":16061164299681, "BodyID":13, "Signals":[ { "Type":"$SAA_SignalType_Geological;", "Type_Localised":"Geological", "Count":3 }, { "Type":"$PlanetaryMiningLocation_Name;", "Type_Localised":"Planetary Mining Location", "Count":7 }, { "Type":"$SAA_SignalType_Human;", "Type_Localised":"Human", "Count":3 } ], "Genuses":[  ] }
+{ "timestamp":"2026-09-27T18:22:34Z", "event":"Touchdown", "PlayerControlled":true, "Taxi":false, "Multicrew":false, "StarSystem":"Pegasi Sector JN-S b4-7", "SystemAddress":16061164299681, "Body":"Pegasi Sector JN-S b4-7 B 4 a", "BodyID":13, "OnStation":false, "OnPlanet":true, "Latitude":45.127930, "Longitude":-146.599792, "NearestDestination":"$SAA_Unknown_Signal:#type=$PlanetaryMiningLocation_Name;:#index=3;", "NearestDestination_Localised":"Planetary Mining Location Signal (3)" }
+{ "timestamp":"2026-09-27T18:22:57Z", "event":"LaunchSRV", "SRVType":"mev_rhino", "SRVType_Localised":"SRV Rhino", "Loadout":"starter", "ID":27, "PlayerControlled":true }
+{ "timestamp":"2026-09-27T18:34:33Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:34:35Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:34:36Z", "event":"MaterialCollected", "Category":"Raw", "Name":"sulphur", "Count":1 }
+{ "timestamp":"2026-09-27T18:34:36Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:34:37Z", "event":"MaterialCollected", "Category":"Raw", "Name":"niobium", "Count":1 }
+{ "timestamp":"2026-09-27T18:34:37Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:34:38Z", "event":"MaterialCollected", "Category":"Raw", "Name":"iron", "Count":1 }
+{ "timestamp":"2026-09-27T18:34:38Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:34:40Z", "event":"MaterialCollected", "Category":"Raw", "Name":"niobium", "Count":1 }
+{ "timestamp":"2026-09-27T18:34:40Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:34:41Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:34:42Z", "event":"MaterialCollected", "Category":"Raw", "Name":"nickel", "Count":1 }
+{ "timestamp":"2026-09-27T18:34:42Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:34:43Z", "event":"MaterialCollected", "Category":"Raw", "Name":"nickel", "Count":1 }
+{ "timestamp":"2026-09-27T18:34:43Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:34:45Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:34:46Z", "event":"MaterialCollected", "Category":"Raw", "Name":"sulphur", "Count":1 }
+{ "timestamp":"2026-09-27T18:34:46Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:36:46Z", "event":"MaterialCollected", "Category":"Raw", "Name":"molybdenum", "Count":1 }
+{ "timestamp":"2026-09-27T18:36:47Z", "event":"MaterialCollected", "Category":"Raw", "Name":"molybdenum", "Count":1 }
+{ "timestamp":"2026-09-27T18:36:47Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:36:49Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:36:50Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:36:51Z", "event":"MaterialCollected", "Category":"Raw", "Name":"niobium", "Count":1 }
+{ "timestamp":"2026-09-27T18:36:51Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:36:52Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:36:54Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:36:55Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:36:56Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:36:57Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:36:59Z", "event":"MaterialCollected", "Category":"Raw", "Name":"iron", "Count":1 }
+{ "timestamp":"2026-09-27T18:36:59Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:37:00Z", "event":"MaterialCollected", "Category":"Raw", "Name":"tin", "Count":1 }
+{ "timestamp":"2026-09-27T18:37:00Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:37:58Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:43:43Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:43:44Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:43:45Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:43:47Z", "event":"MaterialCollected", "Category":"Raw", "Name":"niobium", "Count":1 }
+{ "timestamp":"2026-09-27T18:43:47Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:43:48Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:43:50Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:43:52Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:43:53Z", "event":"MaterialCollected", "Category":"Raw", "Name":"niobium", "Count":1 }
+{ "timestamp":"2026-09-27T18:43:53Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:43:54Z", "event":"MaterialCollected", "Category":"Raw", "Name":"sulphur", "Count":1 }
+{ "timestamp":"2026-09-27T18:43:54Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:43:56Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:43:57Z", "event":"MiningRefined", "Type":"$thortveitite_name;", "Type_Localised":"Thortveitite" }
+{ "timestamp":"2026-09-27T18:44:57Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:44:58Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:44:59Z", "event":"MaterialCollected", "Category":"Raw", "Name":"molybdenum", "Count":1 }
+{ "timestamp":"2026-09-27T18:45:00Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:45:02Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:45:03Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:45:04Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:45:06Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:45:07Z", "event":"MaterialCollected", "Category":"Raw", "Name":"selenium", "Count":1 }
+{ "timestamp":"2026-09-27T18:45:07Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:45:08Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:45:09Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:45:11Z", "event":"MaterialCollected", "Category":"Raw", "Name":"vanadium", "Count":1 }
+{ "timestamp":"2026-09-27T18:45:11Z", "event":"MiningRefined", "Type":"$thorium_name;", "Type_Localised":"Thorium" }
+{ "timestamp":"2026-09-27T18:46:01Z", "event":"SAASignalsFound", "BodyName":"Pegasi Sector JN-S b4-7 B 4", "SystemAddress":16061164299681, "BodyID":12, "Signals":[ { "Type":"$SAA_SignalType_Biological;", "Type_Localised":"Biological", "Count":1 }, { "Type":"$PlanetaryMiningLocation_Name;", "Type_Localised":"Planetary Mining Location", "Count":18 }, { "Type":"$SAA_SignalType_Human;", "Type_Localised":"Human", "Count":6 } ], "Genuses":[ { "Genus":"$Codex_Ent_Stratum_Genus_Name;", "Genus_Localised":"Stratum" } ] }
+{ "timestamp":"2026-09-27T18:46:01Z", "event":"SAASignalsFound", "BodyName":"Pegasi Sector JN-S b4-7 B 4 a", "SystemAddress":16061164299681, "BodyID":13, "Signals":[ { "Type":"$SAA_SignalType_Geological;", "Type_Localised":"Geological", "Count":3 }, { "Type":"$PlanetaryMiningLocation_Name;", "Type_Localised":"Planetary Mining Location", "Count":7 }, { "Type":"$SAA_SignalType_Human;", "Type_Localised":"Human", "Count":3 } ], "Genuses":[  ] }
+{ "timestamp":"2026-09-27T18:47:10Z", "event":"CargoTransfer", "Transfers":[ { "Type":"thortveitite", "Count":22, "Direction":"toship" }, { "Type":"thorium", "Count":23, "Direction":"toship" } ] }
