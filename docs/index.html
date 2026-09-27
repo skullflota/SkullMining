@@ -185,7 +185,10 @@
   </footer>
 </div>
 
-<script src="config.js"></script>
+<script>
+  // Cargar la configuración sin caché, para que un cambio de URL se note al momento
+  document.write('<script src="config.js?t=' + Date.now() + '"><\/script>');
+</script>
 <script>
 (function () {
   "use strict";
