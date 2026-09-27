@@ -101,6 +101,20 @@
   .card .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 10px; font-size: 15px; }
   .card .grid .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
 
+  .top10 { margin: 0 0 18px; }
+  .top10 h2 { font-family: "Orbitron", sans-serif; font-size: 15px; letter-spacing: .1em; color: #fff; margin: 0 0 10px; font-weight: 600; }
+  .top10 h2 span { color: var(--muted); font-family: "Rajdhani", sans-serif; letter-spacing: 0; font-size: 14px; font-weight: 500; margin-left: 8px; }
+  .top10 ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .top10 li { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; min-width: 0; position: relative; }
+  .top10 li .pos { position: absolute; top: 8px; right: 10px; font-family: "Orbitron", sans-serif; font-weight: 800; color: var(--muted); font-size: 13px; }
+  .top10 li:nth-child(1) .pos { color: #ffd166; } .top10 li:nth-child(2) .pos { color: #cfd8e3; } .top10 li:nth-child(3) .pos { color: #e6a06b; }
+  .top10 li .m { font-weight: 700; color: #fff; font-size: 17px; padding-right: 26px; }
+  .top10 li .p { color: var(--accent); font-weight: 700; }
+  .top10 li .where { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  .top10 li .meta { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 13px; gap: 6px; }
+  .top10 li .meta { flex-wrap: wrap; row-gap: 4px; }
+  .top10 .rigs i { width: 8px; height: 8px; }
+
   footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
   footer p { margin: 6px 0; }
 
@@ -110,6 +124,7 @@
     table { display: none; }
     .cards { display: block; }
     .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .top10 ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .updated { text-align: left; }
   }
 </style>
@@ -134,6 +149,11 @@
   <section class="stats" id="stats" aria-label="Resumen"></section>
 
   <div id="notice"></div>
+
+  <section class="top10" id="top10" aria-label="Top 10 por precio del mineral" hidden>
+    <h2>TOP 10 · MINERALES MEJOR PAGADOS<span>por precio medio de venta</span></h2>
+    <ol id="top10list"></ol>
+  </section>
 
   <section class="controls" aria-label="Filtros">
     <label class="search">Buscar sistema o cuerpo
@@ -336,10 +356,26 @@
     $("notice").innerHTML = html ? '<div class="notice ' + kind + '">' + html + "</div>" : "";
   }
 
+  function renderTop10() {
+    var num = function (v) { return v == null || v === "" ? -1 : Number(v); };
+    var list = state.sites.slice().sort(function (a, b) {
+      return num(b.price) - num(a.price) || num(b.rigs) - num(a.rigs) || num(b.value) - num(a.value);
+    }).slice(0, 10);
+    $("top10").hidden = !list.length;
+    $("top10list").innerHTML = list.map(function (s, i) {
+      return '<li><span class="pos">' + (i + 1) + '</span>' +
+        '<div class="m">' + esc(s.mineral) + '</div>' +
+        '<div class="p">' + credits(s.price) + '/t</div>' +
+        '<div class="where" title="' + esc(s.body) + '">' + esc(s.body || s.system) + '</div>' +
+        '<div class="meta">' + rigsDots(s.rigs) + terrainBadge(s.terrain) + '</div></li>';
+    }).join("");
+  }
+
   function load(data) {
     state.sites = (data && data.sites) || [];
     state.stats = data && data.stats;
     renderStats();
+    renderTop10();
     fillMinerals();
     render();
     if (data && data.updated) {
