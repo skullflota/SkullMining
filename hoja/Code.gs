@@ -118,6 +118,9 @@ function doPost(e) {
 
 // Lectura de sitios para el futuro visor: ?token=...&sheet=Sitios
 function doGet(e) {
+  var p = (e && e.parameter) || {};
+  // Lectura pública para la web del ranking: solo sitios, sin nombres de comandante
+  if (p.view === 'ranking') return publicRanking_(p.callback);
   var token = PropertiesService.getScriptProperties().getProperty('FLEET_TOKEN');
   if (!e || !e.parameter || e.parameter.token !== token) return json_({ ok: false, error: 'token' });
   var name = e.parameter.sheet || 'Sitios';
@@ -126,6 +129,44 @@ function doGet(e) {
   var head = values.shift();
   var rows = values.map(function (r) { var o = {}; head.forEach(function (h, i) { o[h] = r[i]; }); return o; });
   return json_({ ok: true, rows: rows });
+}
+
+var PUBLIC_SITE_FIELDS = {
+  'SiteID': 'id', 'Sistema': 'system', 'Cuerpo': 'body', 'Mineral': 'mineral', 'Nombre interno': 'type',
+  'Precio (Cr)': 'price', 'Lat': 'lat', 'Lon': 'lon', 'Máx plataformas': 'rigs',
+  'Dist. mín entre plataformas (m)': 'rigSpacing', 'Extensión (m)': 'extent', 'T/recogida': 'tpc',
+  'Valor por vuelta (Cr)': 'value', 'Visitas': 'visits', 'Recogidas': 'collections',
+  'Toneladas totales': 'tonnes', 'Sitio más cercano (m)': 'nearest', 'Mismo mineral más cercano (m)': 'nearestSame',
+  'Terreno zona': 'terrain', 'Vel. efectiva zona (m/s)': 'speed', 'Señal zona': 'signal',
+  'Sitios minería en cuerpo': 'bodySites', 'Tipo planeta': 'planetClass', 'Gravedad (g)': 'gravity',
+  'Temp (K)': 'temp', 'Última visita': 'lastVisit'
+};
+
+function publicRanking_(callback) {
+  var values = sheet_('Sitios').getDataRange().getValues();
+  var head = values.shift();
+  var sites = values.filter(function (r) { return r[0]; }).map(function (r) {
+    var o = {};
+    head.forEach(function (h, i) {
+      var k = PUBLIC_SITE_FIELDS[h];
+      if (!k) return;
+      var v = r[i];
+      if (v instanceof Date) v = v.toISOString();
+      o[k] = v === '' ? null : v;
+    });
+    return o;
+  });
+  var ses = sheet_('Sesiones').getDataRange().getValues().slice(1);
+  var cmdrs = {};
+  var tonnes = 0;
+  ses.forEach(function (r) { if (r[3]) cmdrs[r[3]] = 1; tonnes += Number(r[17]) || 0; });
+  var out = { ok: true, updated: new Date().toISOString(), sites: sites,
+              stats: { sites: sites.length, sessions: ses.length, commanders: Object.keys(cmdrs).length, tonnes: tonnes } };
+  var txt = JSON.stringify(out);
+  if (callback && /^[A-Za-z_$][\w$.]{0,60}$/.test(callback)) {
+    return ContentService.createTextOutput(callback + '(' + txt + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON);
 }
 
 // ---------------------------------------------------------------------- sesiones

@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skull Mining · Ranking de sitios</title>
+<meta name="description" content="Ranking de sitios de minería en superficie con el Rhino, recogidos por la flota Skull en Elite Dangerous.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07090c;
+    --panel: #0e1217;
+    --panel-2: #131922;
+    --line: #232c38;
+    --text: #d9e1ea;
+    --muted: #8a97a8;
+    --accent: #ff8a1f;
+    --accent-dim: #ff8a1f33;
+    --good: #45d483;
+    --warn: #ffcb47;
+    --bad: #ff5d5d;
+    --cyan: #4fd1ff;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: "Rajdhani", system-ui, sans-serif; font-size: 16px; line-height: 1.4;
+    background-image: radial-gradient(1200px 500px at 70% -10%, #ff8a1f14, transparent 60%),
+                      linear-gradient(transparent 0 calc(100% - 1px), #ffffff06 0) 0 0 / 100% 28px;
+    min-height: 100vh;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 16px 60px; }
+
+  header.top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand svg { flex: none; }
+  .brand h1 { font-family: "Orbitron", sans-serif; font-weight: 800; letter-spacing: .08em; font-size: 26px; margin: 0; color: #fff; }
+  .brand h1 span { color: var(--accent); }
+  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 15px; }
+  .updated { color: var(--muted); font-size: 14px; text-align: right; }
+  .updated b { color: var(--text); font-weight: 600; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 22px 0 18px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; position: relative; overflow: hidden; }
+  .stat::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent); opacity: .8; }
+  .stat .k { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+  .stat .v { font-family: "Orbitron", sans-serif; font-size: 22px; font-weight: 600; color: #fff; margin-top: 2px; }
+
+  .controls { display: grid; grid-template-columns: minmax(0,2fr) repeat(4, minmax(0,1.1fr)); gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+  .controls label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .controls input, .controls select {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+    padding: 9px 10px; font: inherit; font-size: 16px; text-transform: none; letter-spacing: 0; min-width: 0; width: 100%;
+  }
+  .controls input:focus, .controls select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  .count { color: var(--muted); margin: 14px 2px 8px; font-size: 15px; }
+
+  .notice { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); padding: 14px 16px; margin: 16px 0; }
+  .notice.demo { border-color: var(--warn); color: var(--warn); }
+  .notice.error { border-color: var(--bad); color: #ffb3b3; }
+
+  /* Tabla (escritorio) */
+  table { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+  thead th { text-align: left; color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .07em; padding: 4px 12px; white-space: nowrap; }
+  thead th.num { text-align: right; }
+  tbody tr { background: var(--panel); }
+  tbody td { padding: 10px 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tbody td:first-child { border-left: 1px solid var(--line); border-radius: var(--radius) 0 0 var(--radius); }
+  tbody td:last-child { border-right: 1px solid var(--line); border-radius: 0 var(--radius) var(--radius) 0; }
+  tbody tr:hover td { border-color: #ff8a1f55; }
+  td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .rank { font-family: "Orbitron", sans-serif; font-weight: 800; color: var(--muted); font-size: 18px; width: 44px; text-align: center; }
+  tr.top1 .rank { color: #ffd166; } tr.top2 .rank { color: #cfd8e3; } tr.top3 .rank { color: #e6a06b; }
+  .mineral { font-weight: 700; font-size: 18px; color: #fff; }
+  .price { color: var(--muted); font-size: 14px; }
+  .value { font-family: "Orbitron", sans-serif; font-weight: 600; color: var(--accent); font-size: 17px; }
+  .loc { min-width: 260px; }
+  .loc .sys { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .loc .coords { display: block; margin-top: 2px; }
+  .loc .body { color: var(--muted); font-size: 14px; }
+  .coords { color: var(--cyan); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rigs { display: inline-flex; gap: 3px; vertical-align: middle; }
+  .rigs i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--accent); display: inline-block; }
+  .rigs i.on { background: var(--accent); }
+  .rigs-n { margin-left: 6px; font-weight: 700; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; border: 1px solid currentColor; white-space: nowrap; }
+  .t-llano { color: var(--good); } .t-ondulado { color: var(--warn); } .t-montañoso { color: var(--bad); } .t-sin { color: var(--muted); }
+  .fresh { color: var(--warn); font-size: 13px; display: block; }
+  .muted { color: var(--muted); }
+  button.copy { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; cursor: pointer; padding: 1px 6px; font: inherit; font-size: 12px; }
+  button.copy:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Tarjetas (móvil) */
+  .cards { display: none; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
+  .card .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .card .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 10px; font-size: 15px; }
+  .card .grid .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+
+  footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+  footer p { margin: 6px 0; }
+
+  @media (max-width: 900px) {
+    .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .controls label.search { grid-column: 1 / -1; }
+    table { display: none; }
+    .cards { display: block; }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .updated { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="46" height="46" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 4c-13 0-23 9.6-23 22.4 0 7.4 3.5 13 8.6 16.4V52c0 2.2 1.8 4 4 4h3.2v-6h3.4v6h7.6v-6h3.4v6h3.2c2.2 0 4-1.8 4-4v-9.2c5.1-3.4 8.6-9 8.6-16.4C55 13.6 45 4 32 4z" fill="none" stroke="#ff8a1f" stroke-width="3"/>
+        <circle cx="23" cy="28" r="6" fill="#ff8a1f"/><circle cx="41" cy="28" r="6" fill="#ff8a1f"/>
+        <path d="M32 34l-4 8h8z" fill="#ff8a1f"/>
+      </svg>
+      <div>
+        <h1>SKULL <span>MINING</span></h1>
+        <p>Ranking de sitios de minería en superficie · flota Skull</p>
+      </div>
+    </div>
+    <div class="updated" id="updated"></div>
+  </header>
+
+  <section class="stats" id="stats" aria-label="Resumen"></section>
+
+  <div id="notice"></div>
+
+  <section class="controls" aria-label="Filtros">
+    <label class="search">Buscar sistema o cuerpo
+      <input id="q" type="search" placeholder="Ej.: Pegasi Sector" autocomplete="off">
+    </label>
+    <label>Mineral
+      <select id="mineral"><option value="">Todos</option></select>
+    </label>
+    <label>Mín. plataformas
+      <select id="minRigs">
+        <option value="0">Cualquiera</option><option value="2">2 o más</option>
+        <option value="3">3 o más</option><option value="4">4 o más</option>
+      </select>
+    </label>
+    <label>Terreno
+      <select id="terrain">
+        <option value="">Cualquiera</option><option value="llano">Llano</option>
+        <option value="ondulado">Ondulado</option><option value="montañoso">Montañoso</option>
+      </select>
+    </label>
+    <label>Ordenar por
+      <select id="sort">
+        <option value="value">Valor por vuelta</option>
+        <option value="price">Precio del mineral</option>
+        <option value="rigs">Nº de plataformas</option>
+        <option value="nearest">Sitio más cercano</option>
+        <option value="lastVisit">Última visita</option>
+      </select>
+    </label>
+  </section>
+
+  <div class="count" id="count"></div>
+
+  <table aria-label="Sitios">
+    <thead>
+      <tr>
+        <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Plataformas</th>
+        <th>Ubicación</th><th class="num">Más cercano</th><th>Terreno</th><th>Última visita</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="cards" id="cards"></div>
+
+  <footer>
+    <p><b>Valor por vuelta</b> = máximo de plataformas conseguido × toneladas por recogida × precio medio del mineral. Es lo que da recoger todas las plataformas del sitio una vez.</p>
+    <p>Un <b>sitio</b> es una zona de un solo mineral de unos 50 m. Las plataformas deben estar a <b>47 m</b> como mínimo entre sí. Los sitios visitados hace menos de 2 h pueden estar agotados (se reponen despacio).</p>
+    <p>Datos enviados por los miembros con el plugin <a href="https://github.com/skullflota/SkullMining">Skull Mining</a> para EDMC.</p>
+  </footer>
+</div>
+
+<script src="config.js"></script>
+<script>
+(function () {
+  "use strict";
+  var state = { sites: [], stats: null, demo: false };
+  var $ = function (id) { return document.getElementById(id); };
+  var nf = new Intl.NumberFormat("es-ES");
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function credits(v) {
+    if (v == null || v === "") return "—";
+    v = Number(v);
+    if (v >= 1e6) return (v / 1e6).toLocaleString("es-ES", { maximumFractionDigits: 2 }) + " M Cr";
+    if (v >= 1e3) return Math.round(v / 1e3).toLocaleString("es-ES") + " k Cr";
+    return nf.format(v) + " Cr";
+  }
+  function meters(v) {
+    if (v == null || v === "") return "—";
+    v = Number(v);
+    return v >= 1000 ? (v / 1000).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + " km" : Math.round(v) + " m";
+  }
+  function ago(iso) {
+    if (!iso) return { text: "—", fresh: false };
+    var t = new Date(iso).getTime();
+    if (isNaN(t)) return { text: esc(iso), fresh: false };
+    var m = Math.max(0, (Date.now() - t) / 60000);
+    var text = m < 60 ? "hace " + Math.round(m) + " min"
+      : m < 60 * 24 ? "hace " + Math.round(m / 60) + " h"
+      : "hace " + Math.round(m / 1440) + " d";
+    return { text: text, fresh: m < 120 };
+  }
+  function rigsDots(n) {
+    n = Number(n) || 0;
+    var out = '<span class="rigs" aria-hidden="true">';
+    for (var i = 0; i < 6; i++) out += '<i class="' + (i < n ? "on" : "") + '"></i>';
+    return out + '</span><span class="rigs-n">' + n + "</span>";
+  }
+  function terrainBadge(t) {
+    t = t || "sin datos";
+    var cls = t === "llano" ? "t-llano" : t === "ondulado" ? "t-ondulado" : t === "montañoso" ? "t-montañoso" : "t-sin";
+    return '<span class="badge ' + cls + '">' + esc(t) + "</span>";
+  }
+  function coords(s) {
+    if (s.lat == null || s.lon == null) return "—";
+    return Number(s.lat).toFixed(4) + ", " + Number(s.lon).toFixed(4);
+  }
+
+  function renderStats() {
+    var st = state.stats || { sites: state.sites.length };
+    var items = [
+      ["Sitios", st.sites], ["Sesiones", st.sessions], ["Comandantes", st.commanders],
+      ["Toneladas", st.tonnes]
+    ];
+    $("stats").innerHTML = items.map(function (it) {
+      return '<div class="stat"><div class="k">' + it[0] + '</div><div class="v">' +
+        (it[1] == null ? "—" : nf.format(it[1])) + "</div></div>";
+    }).join("");
+  }
+
+  function fillMinerals() {
+    var sel = $("mineral");
+    var seen = {};
+    state.sites.forEach(function (s) { if (s.mineral) seen[s.mineral] = (seen[s.mineral] || 0) + 1; });
+    Object.keys(seen).sort(function (a, b) { return a.localeCompare(b, "es"); }).forEach(function (m) {
+      var o = document.createElement("option");
+      o.value = m; o.textContent = m + " (" + seen[m] + ")";
+      sel.appendChild(o);
+    });
+  }
+
+  function filtered() {
+    var q = $("q").value.trim().toLowerCase();
+    var mineral = $("mineral").value;
+    var minRigs = Number($("minRigs").value);
+    var terrain = $("terrain").value;
+    var sort = $("sort").value;
+    var list = state.sites.filter(function (s) {
+      if (q && ((s.system || "") + " " + (s.body || "")).toLowerCase().indexOf(q) < 0) return false;
+      if (mineral && s.mineral !== mineral) return false;
+      if (minRigs && (Number(s.rigs) || 0) < minRigs) return false;
+      if (terrain && s.terrain !== terrain) return false;
+      return true;
+    });
+    var num = function (v, dflt) { return v == null || v === "" ? dflt : Number(v); };
+    list.sort(function (a, b) {
+      switch (sort) {
+        case "price": return num(b.price, -1) - num(a.price, -1);
+        case "rigs": return num(b.rigs, -1) - num(a.rigs, -1) || num(b.value, -1) - num(a.value, -1);
+        case "nearest": return num(a.nearest, Infinity) - num(b.nearest, Infinity);
+        case "lastVisit": return new Date(b.lastVisit || 0) - new Date(a.lastVisit || 0);
+        default: return num(b.value, -1) - num(a.value, -1);
+      }
+    });
+    return list;
+  }
+
+  function copyBtn(text) {
+    return '<button class="copy" type="button" data-copy="' + esc(text) + '" title="Copiar nombre del sistema">copiar</button>';
+  }
+
+  function render() {
+    var list = filtered();
+    $("count").textContent = list.length + (list.length === 1 ? " sitio" : " sitios") +
+      (list.length !== state.sites.length ? " de " + state.sites.length : "");
+    var rows = [], cards = [];
+    list.forEach(function (s, i) {
+      var v = ago(s.lastVisit);
+      var cls = i < 3 && $("sort").value === "value" ? "top" + (i + 1) : "";
+      var visit = v.text + (v.fresh ? '<span class="fresh">⚠ recién minado</span>' : "");
+      rows.push(
+        '<tr class="' + cls + '">' +
+        '<td class="rank">' + (i + 1) + "</td>" +
+        '<td><div class="mineral">' + esc(s.mineral) + '</div><div class="price">' + credits(s.price) + "/t</div></td>" +
+        '<td class="num"><span class="value">' + credits(s.value) + '</span><div class="price">' + (s.tpc ? esc(s.tpc) + " t/recogida" : "") + "</div></td>" +
+        "<td>" + rigsDots(s.rigs) + (s.rigSpacing ? '<div class="price">a ' + meters(s.rigSpacing) + "</div>" : "") + "</td>" +
+        '<td class="loc"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(s.body) +
+          (s.bodySites ? " · " + esc(s.bodySites) + " zonas" : "") + '</div><span class="coords">' + coords(s) + "</span></td>" +
+        '<td class="num">' + meters(s.nearest) + "</td>" +
+        "<td>" + terrainBadge(s.terrain) + "</td>" +
+        "<td>" + visit + "</td></tr>"
+      );
+      cards.push(
+        '<article class="card"><div class="row1"><div><span class="muted">#' + (i + 1) + '</span> <span class="mineral">' + esc(s.mineral) +
+        '</span></div><span class="value">' + credits(s.value) + "</span></div>" +
+        '<div class="loc" style="margin-top:6px"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(s.body) + "</div></div>" +
+        '<div class="grid">' +
+        '<div><div class="k">Plataformas</div>' + rigsDots(s.rigs) + "</div>" +
+        '<div><div class="k">Precio</div>' + credits(s.price) + "/t</div>" +
+        '<div><div class="k">Coordenadas</div><span class="coords">' + coords(s) + "</span></div>" +
+        '<div><div class="k">Más cercano</div>' + meters(s.nearest) + "</div>" +
+        '<div><div class="k">Terreno</div>' + terrainBadge(s.terrain) + "</div>" +
+        '<div><div class="k">Última visita</div>' + visit + "</div>" +
+        "</div></article>"
+      );
+    });
+    var empty = state.sites.length ? "Ningún sitio coincide con los filtros." : "Todavía no hay sitios registrados.";
+    $("tbody").innerHTML = rows.join("") || '<tr><td colspan="8" class="muted" style="text-align:center">' + empty + "</td></tr>";
+    $("cards").innerHTML = cards.join("") || '<p class="muted">' + empty + "</p>";
+  }
+
+  function setNotice(kind, html) {
+    $("notice").innerHTML = html ? '<div class="notice ' + kind + '">' + html + "</div>" : "";
+  }
+
+  function load(data) {
+    state.sites = (data && data.sites) || [];
+    state.stats = data && data.stats;
+    renderStats();
+    fillMinerals();
+    render();
+    if (data && data.updated) {
+      $("updated").innerHTML = "Actualizado <b>" + new Date(data.updated).toLocaleString("es-ES") + "</b>";
+    }
+  }
+
+  function loadJsonp(url) {
+    return new Promise(function (resolve, reject) {
+      var cb = "__skull" + Date.now();
+      var s = document.createElement("script");
+      var timer = setTimeout(function () { cleanup(); reject(new Error("tiempo agotado")); }, 20000);
+      function cleanup() { clearTimeout(timer); delete window[cb]; s.remove(); }
+      window[cb] = function (d) { cleanup(); resolve(d); };
+      s.onerror = function () { cleanup(); reject(new Error("no se pudo cargar")); };
+      s.src = url + (url.indexOf("?") < 0 ? "?" : "&") + "view=ranking&callback=" + cb;
+      document.head.appendChild(s);
+    });
+  }
+
+  function start() {
+    var params = new URLSearchParams(location.search);
+    var api = (window.SKULL_API_URL || "").trim();
+    var useDemo = params.has("demo") || !api;
+    ["q", "mineral", "minRigs", "terrain", "sort"].forEach(function (id) {
+      $(id).addEventListener(id === "q" ? "input" : "change", render);
+    });
+    document.addEventListener("click", function (e) {
+      var b = e.target.closest("button.copy");
+      if (!b) return;
+      navigator.clipboard && navigator.clipboard.writeText(b.dataset.copy).then(function () {
+        b.textContent = "copiado"; setTimeout(function () { b.textContent = "copiar"; }, 1200);
+      });
+    });
+    renderStats();
+    if (useDemo) {
+      setNotice("demo", "<b>Modo demostración:</b> datos de ejemplo" + (api ? "" : " (falta configurar la URL de la hoja en <code>config.js</code>)") + ".");
+      fetch("demo.json").then(function (r) { return r.json(); }).then(load)
+        .catch(function () { setNotice("error", "No se pudieron cargar los datos de ejemplo."); });
+      return;
+    }
+    $("count").textContent = "Cargando sitios…";
+    loadJsonp(api).then(function (d) {
+      if (!d || !d.ok) throw new Error((d && d.error) || "respuesta no válida");
+      load(d);
+    }).catch(function (err) {
+      $("count").textContent = "";
+      setNotice("error", "No se pudo leer la hoja de la flota (" + esc(err.message) + "). Inténtalo en un rato.");
+    });
+  }
+  start();
+})();
+</script>
+</body>
+</html>
