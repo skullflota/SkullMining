@@ -3,12 +3,12 @@
 Herramienta de la **flota Skull** para encontrar los mejores sitios de minería en superficie con el Rhino en *Elite Dangerous*.
 
 Tiene dos partes:
-- **Plugin de EDMC** (`SkullMining/`): cada miembro lo instala. Graba automáticamente sus sesiones de minería con el Rhino (plataformas, distancias, recorrido, toneladas) y las envía a la hoja de la flota.
-- **Hoja de Google** (`hoja/Code.gs`): recibe los datos de todos y los agrupa por **sitio**, es decir, una zona de un solo mineral de unos 50 m. De cada sitio muestra el máximo de plataformas conseguido (con una separación mínima de 47 m entre ellas), el valor por vuelta, las distancias y el terreno.
+- **Plugin de EDMC** (`SkullMining/`): cada miembro lo instala. Graba automáticamente sus sesiones de minería con el Rhino (taladros, distancias, recorrido, toneladas) y las envía a la hoja de la flota.
+- **Hoja de Google** (`hoja/Code.gs`): recibe los datos de todos y los agrupa por **sitio**, es decir, un depósito de un solo mineral (la mancha morada del escáner). De cada sitio muestra el máximo de taladros conseguido (con una separación mínima de 47 m entre ellos), el valor por vuelta, las distancias y el terreno.
 
 ## Ranking de sitios
 
-La web **https://skullflota.github.io/SkullMining/** muestra los sitios ordenados por valor por vuelta, con filtros por mineral, plataformas y terreno. El código está en `docs/`, y la URL de la hoja se configura en `docs/config.js`.
+La web **https://skullflota.github.io/SkullMining/** muestra los sitios ordenados por valor por vuelta, con filtros por mineral, taladros y terreno. El código está en `docs/`, y la URL de la hoja se configura en `docs/config.js`.
 
 ## Instalar el plugin (miembros)
 

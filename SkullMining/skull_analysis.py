@@ -312,7 +312,9 @@ def classify_terrain(sinuosity: Optional[float], gain_per_km: Optional[float], m
     if gain_per_km is not None:
         score += 2 if gain_per_km > 60 else (1 if gain_per_km > 20 else 0)
     if moving_speed is not None:
-        score += 2 if moving_speed < 8 else (1 if moving_speed < 14 else 0)
+        # Calibrado con sesiones reales: llano a 22-30 m/s (27-sep); ondulado y rocoso, "de lo peor",
+        # a ~7 m/s (28-sep, B 4 zona 3). Por debajo de 8 m/s el terreno ya es malo aunque no zigzaguee.
+        score += 4 if moving_speed < 8 else (1 if moving_speed < 14 else 0)
     if score <= 1:
         return "llano"
     if score <= 3:

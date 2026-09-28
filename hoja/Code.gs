@@ -12,10 +12,10 @@
  *   5. Pasar a la flota la URL de la aplicación web y la clave.
  */
 
-var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 plataformas a 103 m en la misma mancha (28-sep)
+var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 taladros a 103 m en la misma mancha (28-sep)
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '6';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '7';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
 // Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
 // el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
@@ -24,21 +24,21 @@ var OLD_DENSITY = { 'Alto': 'Alta', 'Medio': 'Media', 'Bajo': 'Baja' };
 
 var HEADERS = {
   'Sitios': ['SiteID', 'Sistema', 'Cuerpo', 'Mineral', 'Nombre interno', 'Precio (Cr)', 'Lat', 'Lon',
-             'Máx plataformas', 'Dist. mín entre plataformas (m)', 'Extensión (m)', 'T/recogida',
+             'Máx taladros', 'Dist. mín entre taladros (m)', 'Extensión (m)', 'T/recogida',
              'Valor por vuelta (Cr)', 'Visitas', 'Recogidas', 'Toneladas totales', 'Sitio más cercano (m)',
              'Mismo mineral más cercano (m)', 'Terreno zona', 'Vel. efectiva zona (m/s)', 'Señal zona',
              'Sitios minería en cuerpo', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Última visita', 'Último CMDR',
              'Zona', 'Densidad', 'Densidad fecha', 'Densidad CMDR', 'Agotado', 'Agotado CMDR'],
-  'Visitas': ['SessionID', 'SiteID', 'Fecha', 'CMDR', 'Mineral', 'Plataformas', 'Dist. mín entre plataformas (m)',
+  'Visitas': ['SessionID', 'SiteID', 'Fecha', 'CMDR', 'Mineral', 'Taladros', 'Dist. mín entre taladros (m)',
               'Extensión (m)', 'Recogidas', 'Toneladas', 'T/recogida', 'Terreno zona', 'Vel. efectiva zona (m/s)',
               'Zona'],
   'Sesiones': ['SessionID', 'Sitios', 'Recibido', 'CMDR', 'Sistema', 'Cuerpo', 'Inicio', 'Fin', 'Duración (min)',
-               'Plataformas', 'Recogidas', 'T/recogida', 'Ciclo recogida (min)', 'Señal zona',
+               'Taladros', 'Recogidas', 'T/recogida', 'Ciclo recogida (min)', 'Señal zona',
                'Sitios minería en cuerpo', 'Materiales', 'Cargas a nave (t)', 'Toneladas', 'Valor estimado (Cr)',
                'Cr/h', 'Ruta recogida (m)', 'Vel. efectiva (m/s)', 'Vel. en movimiento (m/s)', 'Sinuosidad',
                'Terreno', 'Recorrido (m)', 'Minerales', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Radio (m)',
                'Vehículo', 'Motivo cierre', 'Eventos desconocidos', 'Versión plugin', 'Zonas'],
-  'Plataformas': ['SessionID', 'SiteID', 'Nº', 'Lat', 'Lon', 'Mineral', 'Toneladas', 'Recogidas', 'T/recogida',
+  'Taladros': ['SessionID', 'SiteID', 'Nº', 'Lat', 'Lon', 'Mineral', 'Toneladas', 'Recogidas', 'T/recogida',
                   'Primera', 'Última'],
   'Tramos': ['SessionID', 'De', 'A', 'Línea recta (m)', 'Recorrido (m)', 'Tiempo (s)',
              'Vel. efectiva (m/s)', 'Sinuosidad'],
@@ -101,6 +101,7 @@ function ensureSchema_(force) {
   var props = PropertiesService.getScriptProperties();
   if (!force && props.getProperty('SCHEMA_VERSION') === SCHEMA_VERSION) return;
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  renameToTaladros_(ss);
   var migrateStates = renameStateColumns_(ss);
   Object.keys(HEADERS).forEach(function (name) {
     var want = HEADERS[name];
@@ -119,6 +120,21 @@ function ensureSchema_(force) {
   });
   if (migrateStates) recomputeAllStates_();
   props.setProperty('SCHEMA_VERSION', SCHEMA_VERSION);
+}
+
+// v7: "plataforma" pasa a llamarse "taladro" (pestaña y cabeceras)
+function renameToTaladros_(ss) {
+  var old = ss.getSheetByName('Plataformas');
+  if (old && !ss.getSheetByName('Taladros')) old.setName('Taladros');
+  ['Sitios', 'Visitas', 'Sesiones'].forEach(function (name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh || sh.getLastRow() === 0) return;
+    var have = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    have.forEach(function (h, i) {
+      var n = String(h).replace(/Plataformas/g, 'Taladros').replace(/plataformas/g, 'taladros');
+      if (n !== h) sh.getRange(1, i + 1).setValue(n);
+    });
+  });
 }
 
 // v5: la columna "Estado" pasa a llamarse "Densidad" y el agotado va en columnas aparte.
@@ -174,7 +190,7 @@ function doGet(e) {
   var token = PropertiesService.getScriptProperties().getProperty('FLEET_TOKEN');
   if (!e || !e.parameter || e.parameter.token !== token) return json_({ ok: false, error: 'token' });
   var name = e.parameter.sheet || 'Sitios';
-  if (['Sitios', 'Visitas', 'Sesiones', 'Plataformas', 'Tramos', 'Precios', 'Zonas', 'Estados'].indexOf(name) < 0) return json_({ ok: false, error: 'sheet' });
+  if (['Sitios', 'Visitas', 'Sesiones', 'Taladros', 'Tramos', 'Precios', 'Zonas', 'Estados'].indexOf(name) < 0) return json_({ ok: false, error: 'sheet' });
   var values = sheet_(name).getDataRange().getValues();
   var head = values.shift();
   var rows = values.map(function (r) { var o = {}; head.forEach(function (h, i) { o[h] = r[i]; }); return o; });
@@ -183,8 +199,8 @@ function doGet(e) {
 
 var PUBLIC_SITE_FIELDS = {
   'SiteID': 'id', 'Sistema': 'system', 'Cuerpo': 'body', 'Mineral': 'mineral', 'Nombre interno': 'type',
-  'Precio (Cr)': 'price', 'Lat': 'lat', 'Lon': 'lon', 'Máx plataformas': 'rigs',
-  'Dist. mín entre plataformas (m)': 'rigSpacing', 'Extensión (m)': 'extent', 'T/recogida': 'tpc',
+  'Precio (Cr)': 'price', 'Lat': 'lat', 'Lon': 'lon', 'Máx taladros': 'rigs',
+  'Dist. mín entre taladros (m)': 'rigSpacing', 'Extensión (m)': 'extent', 'T/recogida': 'tpc',
   'Valor por vuelta (Cr)': 'value', 'Visitas': 'visits', 'Recogidas': 'collections',
   'Toneladas totales': 'tonnes', 'Sitio más cercano (m)': 'nearest', 'Mismo mineral más cercano (m)': 'nearestSame',
   'Terreno zona': 'terrain', 'Vel. efectiva zona (m/s)': 'speed', 'Señal zona': 'signal',
@@ -250,7 +266,7 @@ function handleSession_(d) {
   // Zonas: puntos de bajada que ha registrado el plugin
   (d.zones || []).forEach(function (z) { upsertZone_(d.system, d.body, z.index, z.lat, z.lon); });
 
-  // Sitios: uno por grupo de plataformas del mismo mineral
+  // Sitios: uno por grupo de taladros del mismo mineral
   var siteIds = {};
   var news = [];
   (s.sites || []).forEach(function (st) {
@@ -276,7 +292,7 @@ function handleSession_(d) {
     (d.zones || []).map(function (z) { return z.index; }).join(', ')
   ]);
 
-  var pl = sheet_('Plataformas');
+  var pl = sheet_('Taladros');
   (s.rig_list || []).forEach(function (r) {
     pl.appendRow([d.session_id, siteIds[r.site] || '', r.idx, r.lat, r.lon, esName[r.main_type] || r.main_type,
                   r.tonnes, r.collections, nz_(r.tonnes_per_collection),
@@ -316,7 +332,7 @@ function siteSnapshot_(d, st) {
     var row = values[i];
     if (row[1] !== d.system || row[2] !== d.body || row[4] !== st.main_type || !R) continue;
     if (haversine_(st.lat, st.lon, row[6], row[7], R) <= SITE_MATCH_M) {
-      return { rigs: Number(row[H.indexOf('Máx plataformas')]) || 0 };
+      return { rigs: Number(row[H.indexOf('Máx taladros')]) || 0 };
     }
   }
   return null;
@@ -369,18 +385,18 @@ function recomputeSite_(siteId, prices) {
   var cur = sh.getRange(r, 1, 1, H.length).getValues()[0];
   var set = function (n, v) { cur[H.indexOf(n)] = v; };
   var price = prices[String(cur[H.indexOf('Nombre interno')]).toLowerCase()] || 0;
-  var maxRigs = Math.max.apply(null, vals('Plataformas').concat([0]));
-  var spacing = vals('Dist. mín entre plataformas (m)');
+  var maxRigs = Math.max.apply(null, vals('Taladros').concat([0]));
+  var spacing = vals('Dist. mín entre taladros (m)');
   var tpc = median(vals('T/recogida'));
   var votes = {};
   vals('Terreno zona').forEach(function (t) { if (t !== 'sin datos') votes[t] = (votes[t] || 0) + 1; });
 
   set('Precio (Cr)', price);
-  set('Máx plataformas', maxRigs);
-  set('Dist. mín entre plataformas (m)', spacing.length ? Math.min.apply(null, spacing) : '');
+  set('Máx taladros', maxRigs);
+  set('Dist. mín entre taladros (m)', spacing.length ? Math.min.apply(null, spacing) : '');
   set('Extensión (m)', Math.max.apply(null, vals('Extensión (m)').concat([0])));
   set('T/recogida', tpc);
-  // Valor de recoger todas las plataformas una vez: la cifra para comparar sitios
+  // Valor de recoger todos los taladros una vez: la cifra para comparar sitios
   set('Valor por vuelta (Cr)', tpc !== '' ? Math.round(maxRigs * tpc * price) : '');
   set('Visitas', rows.length);
   set('Recogidas', sum(vals('Recogidas')));
@@ -541,7 +557,7 @@ function applyPendingStates_(siteId, system, body, type, lat, lon, R) {
 // ----------------------------------------------------------------------- discord
 // Configuración en Propiedades del script:
 //   DISCORD_WEBHOOK = URL del webhook del canal (no la compartas)
-//   DISCORD_MODE    = novedades (sitio nuevo o récord de plataformas) | sesiones | no
+//   DISCORD_MODE    = novedades (sitio nuevo o récord de taladros) | sesiones | no
 //   DISCORD_ESTADOS = si  → avisar también cuando alguien marca un sitio como Agotado
 function discordConfig_() {
   var p = PropertiesService.getScriptProperties();
@@ -583,7 +599,7 @@ function siteEmbed_(title, color, row, cmdr) {
     description: '📍 **' + row['Sistema'] + '** · ' + row['Cuerpo'] + ' · ' + zona +
       '\n🧭 ' + Number(row['Lat']).toFixed(4) + ', ' + Number(row['Lon']).toFixed(4),
     fields: [
-      { name: 'Plataformas', value: String(row['Máx plataformas'] || 0), inline: true },
+      { name: 'Taladros', value: String(row['Máx taladros'] || 0), inline: true },
       { name: 'Valor por vuelta', value: credits_(row['Valor por vuelta (Cr)']), inline: true },
       { name: 'Terreno', value: String(row['Terreno zona'] || 'sin datos'), inline: true },
       { name: 'Densidad', value: String(row['Densidad'] || 'sin marcar'), inline: true }
@@ -601,7 +617,7 @@ function notifySession_(d, news, esName, prices) {
     if (!row) return;
     var name = row['Mineral'] + ' (' + credits_(row['Precio (Cr)']) + '/t)';
     if (n.isNew) embeds.push(siteEmbed_('⛏️ Nuevo sitio: ' + name, 0xff8a1f, row, d.cmdr));
-    else if (Number(row['Máx plataformas']) > n.prevRigs) embeds.push(siteEmbed_('🏆 Récord: ' + row['Máx plataformas'] + ' plataformas en ' + name, 0xffd166, row, d.cmdr));
+    else if (Number(row['Máx taladros']) > n.prevRigs) embeds.push(siteEmbed_('🏆 Récord: ' + row['Máx taladros'] + ' taladros en ' + name, 0xffd166, row, d.cmdr));
     else if (cfg.mode === 'sesiones') embeds.push(siteEmbed_('🔁 Sesión en ' + name, 0x4fd1ff, row, d.cmdr));
   });
   for (var i = 0; i < embeds.length; i += 10) sendDiscord_({ embeds: embeds.slice(i, i + 10) });

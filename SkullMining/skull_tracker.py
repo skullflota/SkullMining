@@ -16,7 +16,7 @@ from typing import Callable, Dict, List, Optional
 
 import skull_analysis as analysis
 
-PLUGIN_VERSION = "0.5.1"
+PLUGIN_VERSION = "0.5.2"
 
 # Bits de Flags / Flags2 del Status.json
 FLAG_HAS_LATLONG = 1 << 21
@@ -450,7 +450,7 @@ class Tracker:
         if ev in ("FSDJump", "Location", "CarrierJump"):
             if self.session:
                 if ev == "Location":
-                    # Location llega al entrar en el juego: al salir, las plataformas se destruyen
+                    # Location llega al entrar en el juego: al salir, los taladros se destruyen
                     self.close_session("salida del juego")
                 elif entry.get("StarSystem") != self.system.get("name"):
                     self.close_session("salto")

@@ -1,13 +1,13 @@
-# Skull Mining: plugin de EDMC para la flota Skull (v0.5.1)
+# Skull Mining: plugin de EDMC para la flota Skull (v0.5.2)
 
 Registra automáticamente las sesiones de minería en superficie con el Rhino y las envía a una hoja de Google compartida por la flota. De cada sesión calcula:
 
-- **Plataformas**: cuántas se colocaron (las recogidas se agrupan por posición) y cuántas veces se recogió cada una.
-- **Distancias**: la distancia media y mínima entre plataformas, y la ruta de recogida más corta que pasa por todas.
-- **Orografía**: la velocidad efectiva entre plataformas, y la sinuosidad (recorrido real ÷ línea recta), con una etiqueta **llano / ondulado / montañoso**.
+- **Taladros**: cuántos se colocaron (las recogidas se agrupan por posición) y cuántas veces se recogió cada uno.
+- **Distancias**: la distancia media y mínima entre taladros, y la ruta de recogida más corta que pasa por todos.
+- **Orografía**: la velocidad efectiva entre taladros, y la sinuosidad (recorrido real ÷ línea recta), con una etiqueta **llano / ondulado / montañoso**.
 - **Rendimiento**: toneladas por mineral, valor estimado y Cr/hora.
 
-La hoja organiza todo por **sitio**: una zona de un solo mineral de unos 50 m como mucho. Las plataformas del mismo mineral a menos de 60 m forman un sitio, y las sesiones de todos los miembros se juntan en el mismo sitio si caen a menos de 60 m. En la pestaña **Sitios** se ve el mineral, su precio, el **máximo de plataformas** que ha conseguido alguien, la distancia mínima entre plataformas, la extensión y el **valor por vuelta** (plataformas × t por recogida × precio), que es la cifra para comparar sitios. También aparece la distancia al sitio más cercano (de cualquier mineral y del mismo mineral) y el terreno de la zona.
+La hoja organiza todo por **sitio**: un depósito de un solo mineral (la mancha morada del escáner), que puede medir más de 100 m. Los taladros del mismo mineral a menos de 150 m forman un sitio, y las sesiones de todos los miembros se juntan en el mismo sitio si caen a menos de 150 m. En la pestaña **Sitios** se ve el mineral, su precio, el **máximo de taladros** que ha conseguido alguien, la distancia mínima entre taladros, la extensión y el **valor por vuelta** (taladros × t por recogida × precio), que es la cifra para comparar sitios. También aparece la distancia al sitio más cercano (de cualquier mineral y del mismo mineral) y el terreno de la zona.
 
 ---
 
@@ -41,14 +41,14 @@ Si pones un alias, se usa en lugar de tu nombre de comandante. Si no hay conexi�
 
 Comprobado con una sesión real con el Rhino en Pegasi Sector JN-S b4-7 B 4 a:
 - El Rhino cuenta como SRV para el juego (`SRVType: mev_rhino`), así que el recorrido se graba.
-- **El juego no escribe eventos al poner o recoger plataformas.** Cada recogida es una ráfaga de unas 11-12 t de `MiningRefined` (1 evento = 1 t) en unos 14 s. Las plataformas se cuentan agrupando esas ráfagas por posición y mineral. Cada plataforma dio un solo mineral.
+- **El juego no escribe eventos al poner o recoger taladros.** Cada recogida es una ráfaga de unas 11-12 t de `MiningRefined` (1 evento = 1 t) en unos 14 s. Los taladros se cuentan agrupando esas ráfagas por posición y mineral. Cada taladro dio un solo mineral.
 - Al mapear un cuerpo, `SAASignalsFound` indica cuántos sitios de minería tiene ("Planetary Mining Location").
 - Al aterrizar, `Touchdown` dice en qué sitio estás ("Planetary Mining Location Signal (3)"). La hoja usa ese número para identificar el sitio.
 - Dentro del SRV la altitud es siempre 0: **no se puede medir el desnivel**. La orografía se calcula con la velocidad real y la sinuosidad.
 - Cada recogida da también materiales en bruto (`MaterialCollected`), que se guardan en la sesión.
 - Pasar la carga a la nave (`CargoTransfer`) queda registrado como "carga a nave".
 
-Distancia mínima entre plataformas: **unos 47 m**. Frontier no la ha publicado; es la que se consiguió apurando al máximo en un sitio de Torio (27-sep-2026). Por eso el plugin considera que dos recogidas a menos de 23,5 m (la mitad) son la misma plataforma. La hoja guarda la mínima observada en cada sitio, por si algún miembro consigue menos.
+Distancia mínima entre taladros: **unos 47 m**. Frontier no la ha publicado; es la que se consiguió apurando al máximo en un sitio de Torio (27-sep-2026). Por eso el plugin considera que dos recogidas a menos de 23,5 m (la mitad) son el mismo taladro. La hoja guarda la mínima observada en cada sitio, por si algún miembro consigue menos.
 
 Pendiente de calibrar con más sesiones: los umbrales de velocidad y sinuosidad de llano, ondulado y montañoso.
 
@@ -69,5 +69,5 @@ La hoja puede avisar en un canal de Discord de la flota:
 3. Ejecuta la función **probarDiscord** desde el editor: debe llegar un mensaje de prueba al canal.
 
 Opciones (también en Propiedades del script):
-- `DISCORD_MODE`: `novedades` (por defecto; avisa de un sitio nuevo o de un récord de plataformas), `sesiones` (además, cada sesión en un sitio conocido) o `no`.
+- `DISCORD_MODE`: `novedades` (por defecto; avisa de un sitio nuevo o de un récord de taladros), `sesiones` (además, cada sesión en un sitio conocido) o `no`.
 - `DISCORD_ESTADOS`: `si` para avisar también cuando alguien marca un sitio como Agotado.

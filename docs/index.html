@@ -198,7 +198,7 @@
     <label>Mineral
       <select id="mineral"><option value="">Todos</option></select>
     </label>
-    <label>Mín. plataformas
+    <label>Mín. taladros
       <select id="minRigs">
         <option value="0">Cualquiera</option><option value="2">2 o más</option>
         <option value="3">3 o más</option><option value="4">4 o más</option>
@@ -226,7 +226,7 @@
       <select id="sort">
         <option value="value">Valor/vuelta</option>
         <option value="price">Precio del mineral</option>
-        <option value="rigs">Nº de plataformas</option>
+        <option value="rigs">Nº de taladros</option>
         <option value="nearest">Sitio más cercano</option>
         <option value="lastVisit">Última visita</option>
       </select>
@@ -238,7 +238,7 @@
   <table aria-label="Sitios">
     <thead>
       <tr>
-        <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Plataformas</th><th>Densidad</th>
+        <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Taladros</th><th>Densidad</th>
         <th>Ubicación</th><th>Terreno</th><th>Última visita</th>
       </tr>
     </thead>
@@ -247,9 +247,9 @@
   <div class="cards" id="cards"></div>
 
   <footer>
-    <p><b>Valor por vuelta</b> = máximo de plataformas conseguido × toneladas por recogida × precio medio del mineral. Es lo que da recoger todas las plataformas del sitio una vez.</p>
+    <p><b>Valor por vuelta</b> = máximo de taladros conseguido × toneladas por recogida × precio medio del mineral. Es lo que da recoger todos los taladros del sitio una vez.</p>
     <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. La <b>densidad</b> (alta, media, baja) es fija: la genera el juego para cada sitio. <b>Agotado</b> va aparte: el desgaste lo comparten todos los jugadores y, por lo que se sabe, un sitio agotado no se regenera. Las dos cosas las marcan los miembros con los botones del plugin (Alto, Medio, Bajo, Agotado).</p>
-    <p>Un <b>sitio</b> es un depósito de un solo mineral (la mancha morada del escáner); puede medir más de 100 m y admitir varias plataformas. Las plataformas deben estar a <b>47 m</b> como mínimo entre sí. </p>
+    <p>Un <b>sitio</b> es un depósito de un solo mineral (la mancha morada del escáner); puede medir más de 100 m y admitir varios taladros. Los taladros deben estar a <b>47 m</b> como mínimo entre sí. </p>
     <p>Datos enviados por los miembros con el plugin <a href="https://github.com/skullflota/SkullMining">Skull Mining</a> para EDMC.</p>
   </footer>
 </div>
@@ -423,7 +423,7 @@
         '<div class="loc" style="margin-top:6px"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(shortBody(s)) + " · " + zoneLabel(s) + "</div></div>" +
         '<div class="grid">' +
         '<div><div class="k">Densidad</div>' + stateBadge(s, true) + "</div>" +
-        '<div><div class="k">Plataformas</div>' + rigsDots(s.rigs) + "</div>" +
+        '<div><div class="k">Taladros</div>' + rigsDots(s.rigs) + "</div>" +
         '<div><div class="k">Precio</div>' + credits(s.price) + "/t</div>" +
         '<div><div class="k">Coordenadas</div><span class="coords">' + coords(s) + "</span></div>" +
         '<div><div class="k">Más cercano</div>' + meters(s.nearest) + "</div>" +
@@ -449,7 +449,7 @@
     $("top10").hidden = !list.length;
     var mobile = window.matchMedia("(max-width: 900px)").matches;
     var head = '<li class="head"><span></span><span>Mineral</span><span>Precio</span><span>Ubicación</span>' +
-      '<span>Plataformas</span><span style="text-align:right">Valor/vuelta</span><span>Terreno</span></li>';
+      '<span>Taladros</span><span style="text-align:right">Valor/vuelta</span><span>Terreno</span></li>';
     $("top10list").innerHTML = (mobile ? "" : head) + list.map(function (s, i) {
       var where = '<div class="where"><div>' + esc(s.system) + '</div><div class="b">' + esc(shortBody(s)) + " · " + zoneLabel(s) +
         (s.density ? " · " + stateBadge(s) : "") + "</div></div>";
