@@ -4,3 +4,4 @@ pending.json
 live_session.json
 *.tmp
 tests/payloads.json
+zone_state.json

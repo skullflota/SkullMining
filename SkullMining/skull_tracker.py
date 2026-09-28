@@ -16,7 +16,7 @@ from typing import Callable, Dict, List, Optional
 
 import skull_analysis as analysis
 
-PLUGIN_VERSION = "0.3.3"
+PLUGIN_VERSION = "0.4.0"
 
 # Bits de Flags / Flags2 del Status.json
 FLAG_HAS_LATLONG = 1 << 21
@@ -33,13 +33,18 @@ MIN_POINT_MOVE_M = 3.0
 SESSION_IDLE_CLOSE_S = 15 * 60
 # Guardado de la sesión en curso (para no perderla si EDMC se cierra y para poder revisarla)
 LIVE_SAVE_EVERY_S = 20.0
+# Radio máximo de una zona alrededor de su punto de bajada. Las zonas de planetas grandes son
+# "gigantescas" (un minero cuenta conducir 4 km hasta un hotspot); se asigna siempre la más cercana.
+ZONE_RADIUS_M = 10000.0
+# Estados que el jugador puede marcar a mano para un sitio
+SITE_STATES = ("alto", "medio", "bajo", "agotado")
 
 # Eventos que ya tratamos explícitamente
 KNOWN_EVENTS = {
     "MiningRefined", "LaunchSRV", "DockSRV", "SRVDestroyed", "Scan", "SAASignalsFound",
     "FSDJump", "Location", "CarrierJump", "Touchdown", "Liftoff", "MarketSell",
     "Shutdown", "ApproachBody", "LeaveBody", "Embark", "Disembark",
-    "MaterialCollected", "CargoTransfer", "Cargo", "SupercruiseExit", "ModuleInfo",
+    "MaterialCollected", "CargoTransfer", "Cargo", "SupercruiseExit", "ModuleInfo", "EjectCargo",
 }
 SITE_SIGNAL_RE = re.compile(r"PlanetaryMiningLocation_Name;:#index=(\d+)", re.I)
 
@@ -107,6 +112,7 @@ class SurfaceSession:
         self.materials: Dict[str, int] = {}
         self.loads: List[int] = []
         self.site_signal: Optional[int] = None
+        self.zone_anchors: Dict[str, list] = {}  # "3" -> [lat, lon, t, fuente]
         self.alt_avg_votes = [0, 0]  # [no, sí]
 
     def add_point(self, t: float, lat: float, lon: float, alt: Optional[float], alt_from_avg: bool) -> None:
@@ -123,7 +129,7 @@ class SurfaceSession:
     def to_state(self) -> dict:
         return {k: getattr(self, k) for k in (
             "id", "system", "body", "planet_radius", "start_t", "end_t", "srv_type", "track", "refined",
-            "events", "materials", "loads", "site_signal", "alt_avg_votes")}
+            "events", "materials", "loads", "site_signal", "zone_anchors", "alt_avg_votes")}
 
     @classmethod
     def from_state(cls, st: dict) -> "SurfaceSession":
@@ -145,7 +151,8 @@ class SurfaceSession:
 
 
 class Tracker:
-    def __init__(self, emit: Callable[[str, dict], None], live_path: Optional[str] = None):
+    def __init__(self, emit: Callable[[str, dict], None], live_path: Optional[str] = None,
+                 state_path: Optional[str] = None):
         """emit(kind, data) se llama con cada registro listo para enviar.
 
         live_path: archivo donde se guarda la sesión en curso cada pocos segundos.
@@ -164,6 +171,12 @@ class Tracker:
         self.mined_types: set = set()
         self.last_surface_t: float = 0.0
         self.last_site_signal: Optional[dict] = None
+        # Zonas: la última zona fijada como destino se recuerda aunque se quite o se reinicie EDMC
+        self.state_path = state_path
+        self.body_names: Dict[str, str] = {}   # "sistema:bodyid" -> nombre del cuerpo
+        self.zone_target: Optional[dict] = None
+        self.zone_anchors: Dict[str, list] = {}  # "cuerpo|3" -> [lat, lon, t, fuente]
+        self._restore_state()
         self._restore_live()
 
     # -------------------------------------------------------------- persistencia
@@ -204,6 +217,123 @@ class Tracker:
         except OSError:
             pass
 
+    def _restore_state(self) -> None:
+        if not self.state_path or not os.path.exists(self.state_path):
+            return
+        try:
+            with open(self.state_path, "r", encoding="utf-8") as f:
+                st = json.load(f)
+            self.body_names = st.get("body_names", {})
+            self.zone_target = st.get("zone_target")
+            self.zone_anchors = st.get("zone_anchors", {})
+        except Exception:
+            pass
+
+    def _save_state(self) -> None:
+        if not self.state_path:
+            return
+        # limitar tamaño: solo las últimas 200 anclas y 500 cuerpos
+        if len(self.zone_anchors) > 200:
+            keep = sorted(self.zone_anchors.items(), key=lambda kv: kv[1][2])[-200:]
+            self.zone_anchors = dict(keep)
+        if len(self.body_names) > 500:
+            self.body_names = dict(list(self.body_names.items())[-500:])
+        tmp = self.state_path + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"body_names": self.body_names, "zone_target": self.zone_target,
+                           "zone_anchors": self.zone_anchors}, f)
+            os.replace(tmp, self.state_path)
+        except OSError:
+            pass
+
+    # ------------------------------------------------------------------- zonas
+    def _remember_body(self, system_address, body_id, name) -> None:
+        if system_address is None or body_id is None or not name:
+            return
+        key = f"{system_address}:{body_id}"
+        if self.body_names.get(key) != name:
+            self.body_names[key] = name
+            if self.zone_target and self.zone_target.get("body_id") == body_id \
+                    and self.zone_target.get("system") == system_address and not self.zone_target.get("body"):
+                self.zone_target["body"] = name
+            self._save_state()
+
+    def _set_zone_target(self, body: Optional[str], index: int, t: float, system_address=None,
+                         body_id=None, on_surface: bool = False) -> None:
+        zt = self.zone_target or {}
+        if zt.get("index") == index and (zt.get("body") == body or (body_id is not None and zt.get("body_id") == body_id)):
+            if body and not zt.get("body"):
+                zt["body"] = body
+                self._save_state()
+            return
+        self.zone_target = {"body": body, "index": index, "t": t, "system": system_address,
+                            "body_id": body_id, "set_on_surface": on_surface}
+        self._save_state()
+
+    def _anchor_zone(self, body: str, index: int, lat: float, lon: float, t: float, source: str) -> None:
+        key = f"{body}|{index}"
+        if key in self.zone_anchors:
+            return
+        self.zone_anchors[key] = [lat, lon, t, source]
+        if self.session and self.session.body == body:
+            self.session.zone_anchors.setdefault(str(index), [lat, lon, t, source])
+        self._save_state()
+
+    def zone_at(self, body: Optional[str], lat: Optional[float], lon: Optional[float], radius_m: float) -> Optional[int]:
+        """Zona de una posición: la ancla conocida más cercana dentro del radio de zona."""
+        if not body or lat is None or lon is None or not radius_m:
+            return None
+        best, best_d = None, None
+        for key, a in self.zone_anchors.items():
+            b, _, idx = key.rpartition("|")
+            if b != body:
+                continue
+            d = analysis.haversine_m(lat, lon, a[0], a[1], radius_m)
+            if d <= ZONE_RADIUS_M and (best_d is None or d < best_d):
+                best, best_d = int(idx), d
+        if best is not None:
+            return best
+        zt = self.zone_target
+        # Sin ancla cercana: la zona fijada como destino, si es de este cuerpo y no tiene ancla en otro sitio
+        if zt and zt.get("body") == body and f"{body}|{zt['index']}" not in self.zone_anchors:
+            return zt["index"]
+        return None
+
+    def current_zone(self) -> Optional[int]:
+        s = self.status
+        if not s.get("has_ll"):
+            return None
+        return self.zone_at(s.get("body"), s.get("lat"), s.get("lon"), s.get("radius") or 0)
+
+    def mark_state(self, state: str) -> str:
+        """El jugador marca el estado del sitio donde está (alto, medio, bajo, agotado)."""
+        state = state.lower()
+        if state not in SITE_STATES:
+            return "Estado no válido"
+        s = self.status
+        if not s.get("has_ll") or not (s.get("in_srv") or s.get("on_foot")):
+            return "Para marcar el estado tienes que estar en la superficie"
+        lat, lon, body = s["lat"], s["lon"], s.get("body")
+        mineral = None
+        if self.session and self.session.body == body and self.session.planet_radius:
+            counts: Dict[str, int] = {}
+            for r in self.session.refined:
+                if r.get("lat") is None:
+                    continue
+                if analysis.haversine_m(lat, lon, r["lat"], r["lon"], self.session.planet_radius) <= analysis.SITE_LINK_M:
+                    counts[r["type"]] = counts.get(r["type"], 0) + 1
+            if counts:
+                mineral = max(counts, key=counts.get)
+        t = s.get("t") or time.time()
+        rec = {"time": iso(t), "cmdr": self.cmdr, "system": self.system.get("name"), "body": body,
+               "zone": self.current_zone(), "lat": lat, "lon": lon, "state": state, "type": mineral,
+               "planet_radius_m": s.get("radius")}
+        if self.session:
+            self.session.events.append({"t": t, "event": "EstadoSitio", "state": state, "lat": lat, "lon": lon})
+        self.emit("state", rec)
+        return f"Estado '{state}' enviado" + (f" ({mineral})" if mineral else "")
+
     def _drop_live(self) -> None:
         if self.live_path and os.path.exists(self.live_path):
             try:
@@ -228,6 +358,7 @@ class Tracker:
         flags2 = entry.get("Flags2", 0) or 0
         t = parse_ts(entry.get("timestamp"))
         if not (flags & FLAG_HAS_LATLONG) or "Latitude" not in entry:
+            self._handle_destination(entry, t, None, False)
             self.status = {"t": t, "has_ll": False}
             self._check_idle(t)
             return
@@ -244,12 +375,12 @@ class Tracker:
             "alt_avg": bool(flags & FLAG_ALT_FROM_AVG_RADIUS),
         }
         s = self.status
-        dest = entry.get("Destination") or {}
-        idx = site_signal_index(dest.get("Name"))
-        if idx is not None and s["body"]:
-            self.last_site_signal = {"body": s["body"], "index": idx}
-            if self.session and self.session.body == s["body"] and self.session.site_signal is None:
-                self.session.site_signal = idx
+        on_surface = s["in_srv"] or s["on_foot"] or bool(flags & (1 << 1))  # bit 1 = aterrizado
+        self._handle_destination(entry, t, s.get("body"), on_surface)
+        zt = self.zone_target
+        # Ancla de zona: primer punto en superficie tras fijar la zona desde el aire
+        if on_surface and zt and not zt.get("set_on_surface") and zt.get("body") == s["body"]:
+            self._anchor_zone(s["body"], zt["index"], s["lat"], s["lon"], t, "destino")
         on_surface = s["in_srv"] or s["on_foot"]
         if not on_surface:
             self._check_idle(t)
@@ -264,6 +395,20 @@ class Tracker:
                 self.session.planet_radius = s["radius"]
             self.session.add_point(t, s["lat"], s["lon"], s["alt"], s["alt_avg"])
             self.save_live()
+
+    def _handle_destination(self, entry: dict, t: float, body_here: Optional[str], on_surface: bool) -> None:
+        dest = entry.get("Destination") or {}
+        idx = site_signal_index(dest.get("Name"))
+        if idx is None:
+            return
+        body_name = self.body_names.get(f"{dest.get('System')}:{dest.get('Body')}")
+        if body_name is None and body_here:
+            body_name = body_here  # fijada estando ya junto a ese cuerpo
+        self._set_zone_target(body_name, idx, t, dest.get("System"), dest.get("Body"), on_surface)
+        if body_name:
+            self.last_site_signal = {"body": body_name, "index": idx}
+            if self.session and self.session.body == body_name and self.session.site_signal is None:
+                self.session.site_signal = idx
 
     def _check_idle(self, t: float) -> None:
         if self.session and self.last_surface_t and t - self.last_surface_t > SESSION_IDLE_CLOSE_S:
@@ -288,7 +433,12 @@ class Tracker:
                 "address": entry.get("SystemAddress"),
                 "pos": entry.get("StarPos"),
             }
-        elif ev == "Scan" and entry.get("BodyName"):
+        if ev in ("ApproachBody", "Touchdown", "Liftoff", "SupercruiseExit", "LeaveBody", "Location"):
+            self._remember_body(entry.get("SystemAddress"), entry.get("BodyID"), entry.get("Body"))
+        elif ev in ("SAASignalsFound", "Scan"):
+            self._remember_body(entry.get("SystemAddress"), entry.get("BodyID"), entry.get("BodyName"))
+
+        if ev == "Scan" and entry.get("BodyName"):
             info = {
                 "body": entry.get("BodyName"),
                 "body_id": entry.get("BodyID"),
@@ -325,6 +475,9 @@ class Tracker:
             idx = site_signal_index(entry.get("NearestDestination"))
             if idx is not None and entry.get("Body"):
                 self.last_site_signal = {"body": entry["Body"], "index": idx}
+                self._set_zone_target(entry["Body"], idx, t, entry.get("SystemAddress"), entry.get("BodyID"), False)
+                if entry.get("Latitude") is not None:
+                    self._anchor_zone(entry["Body"], idx, entry["Latitude"], entry["Longitude"], t, "aterrizaje")
         elif ev == "MaterialCollected" and self.session:
             name = entry.get("Name_Localised") or entry.get("Name") or "?"
             self.session.materials[name] = self.session.materials.get(name, 0) + (entry.get("Count") or 1)
@@ -348,6 +501,7 @@ class Tracker:
                     "name": entry.get("Type_Localised") or typ,
                     "lat": s.get("lat") if s.get("has_ll") else None,
                     "lon": s.get("lon") if s.get("has_ll") else None,
+                    "zone": self.current_zone(),
                 })
                 self.session.end_t = max(self.session.end_t, t)
                 self.save_live(force=True)
@@ -381,6 +535,10 @@ class Tracker:
         ls = self.last_site_signal
         if ls and ls["body"] == self.session.body:
             self.session.site_signal = ls["index"]
+        for key, a in self.zone_anchors.items():
+            b, _, idx = key.rpartition("|")
+            if b == self.session.body:
+                self.session.zone_anchors[idx] = a
         self.last_surface_t = t
 
     def _body_record(self, body: str, t: float) -> dict:
@@ -402,6 +560,7 @@ class Tracker:
         if not sess.refined:
             return None  # sin minería: no se envía nada (privacidad)
         summary = analysis.summarize(sess.to_dict())
+        self._assign_site_zones(sess, summary)
         body = self.bodies.get(sess.body, {})
         track = analysis.downsample(sess.track)
         rec = {
@@ -419,6 +578,7 @@ class Tracker:
             "planet_radius_m": sess.planet_radius,
             "srv_type": sess.srv_type,
             "site_signal": sess.site_signal,
+            "zones": [{"index": int(k), "lat": v[0], "lon": v[1], "source": v[3]} for k, v in sess.zone_anchors.items()],
             "mining_locations_on_body": body.get("mining_locations"),
             "materials": sess.materials,
             "loads_to_ship": sess.loads,
@@ -433,8 +593,25 @@ class Tracker:
         self.emit("session", rec)
         return rec
 
+    def _assign_site_zones(self, sess: SurfaceSession, summary: dict) -> None:
+        """Zona de cada sitio: la más repetida entre sus refinados; si no hay, la ancla más cercana."""
+        R = sess.planet_radius
+        for site in summary.get("sites", []) or []:
+            votes: Dict[int, int] = {}
+            for r in sess.refined:
+                if r.get("zone") is None or r.get("lat") is None or r["type"] != site["main_type"]:
+                    continue
+                if analysis.haversine_m(site["lat"], site["lon"], r["lat"], r["lon"], R) <= analysis.SITE_LINK_M:
+                    votes[r["zone"]] = votes.get(r["zone"], 0) + 1
+            if votes:
+                site["zone"] = max(votes, key=votes.get)
+            else:
+                site["zone"] = self.zone_at(sess.body, site["lat"], site["lon"], R)
+
     def live_text(self) -> str:
         if not self.session:
             return "Esperando sesión en superficie"
         n = len(self.session.refined)
-        return f"Grabando en {self.session.body} · {n} t refinadas · {len(self.session.track)} puntos"
+        z = self.current_zone()
+        zt = f" · zona {z}" if z is not None else ""
+        return f"Grabando en {self.session.body}{zt} · {n} t refinadas"

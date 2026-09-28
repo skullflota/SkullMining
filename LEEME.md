@@ -1,4 +1,4 @@
-# Skull Mining: plugin de EDMC para la flota Skull (v0.3.3)
+# Skull Mining: plugin de EDMC para la flota Skull (v0.4.0)
 
 Registra automáticamente las sesiones de minería en superficie con el Rhino y las envía a una hoja de Google compartida por la flota. De cada sesión calcula:
 
@@ -51,3 +51,20 @@ Comprobado con una sesión real con el Rhino en Pegasi Sector JN-S b4-7 B 4 a:
 Distancia mínima entre plataformas: **unos 47 m**. Frontier no la ha publicado; es la que se consiguió apurando al máximo en un sitio de Torio (27-sep-2026). Por eso el plugin considera que dos recogidas a menos de 23,5 m (la mitad) son la misma plataforma. La hoja guarda la mínima observada en cada sitio, por si algún miembro consigue menos.
 
 Pendiente de calibrar con más sesiones: los umbrales de velocidad y sinuosidad de llano, ondulado y montañoso.
+
+## 5. Zonas de minería y estado de los sitios (v0.4.0)
+
+- **Zonas:** cada planeta tiene varias zonas (las señales "Planetary Mining Location Signal (N)"). Cuando fijas una zona como destino, el plugin lo apunta y lo **recuerda** aunque quites el destino o reinicies EDMC. Al bajar guarda el punto de la zona, y a cada sitio que mines le asigna su zona. Si falta el número, la hoja usa la zona conocida más cercana (hasta 10 km).
+- **Minerales de la zona:** el juego solo los muestra en pantalla al fijar la zona. Apúntalos a mano en la pestaña **Zonas** de la hoja, columna "Minerales (anotar a mano)", separados por comas. La hoja rellena sola los "Minerales confirmados" con lo que ha minado la flota.
+- **Estado del sitio:** el escáner del Rhino muestra si un sitio está alto, medio, bajo o agotado, pero el juego no lo escribe en el journal. Para compartirlo, pulsa el botón correspondiente en la línea de Skull Mining de la ventana de EDMC **estando en el sitio**. Se asigna al sitio de tu posición, aunque aún no hayas minado ahí.
+
+## 6. Avisos en Discord
+
+La hoja puede avisar en un canal de Discord de la flota:
+1. En Discord: **Editar canal → Integraciones → Webhooks → Nuevo webhook** ("Skull Mining") → **Copiar URL**. No la publiques.
+2. En Apps Script: **Configuración del proyecto → Propiedades del script → Añadir propiedad**: `DISCORD_WEBHOOK` = la URL copiada.
+3. Ejecuta la función **probarDiscord** desde el editor: debe llegar un mensaje de prueba al canal.
+
+Opciones (también en Propiedades del script):
+- `DISCORD_MODE`: `novedades` (por defecto; avisa de un sitio nuevo o de un récord de plataformas), `sesiones` (además, cada sesión en un sitio conocido) o `no`.
+- `DISCORD_ESTADOS`: `si` para avisar también cuando alguien marca un sitio como Agotado.

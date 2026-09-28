@@ -50,7 +50,7 @@
   .stat .k { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
   .stat .v { font-family: "Orbitron", sans-serif; font-size: 22px; font-weight: 600; color: #fff; margin-top: 2px; }
 
-  .controls { display: grid; grid-template-columns: minmax(0,2fr) repeat(4, minmax(0,1.1fr)); gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+  .controls { display: grid; grid-template-columns: minmax(0,1.8fr) repeat(5, minmax(0,1fr)); gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
   .controls label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
   .controls input, .controls select {
     background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
@@ -78,7 +78,7 @@
   .mineral { font-weight: 700; font-size: 18px; color: #fff; }
   .price { color: var(--muted); font-size: 14px; }
   .value { font-family: "Orbitron", sans-serif; font-weight: 600; color: var(--accent); font-size: 17px; }
-  .loc { min-width: 260px; }
+  .loc { min-width: 230px; }
   .loc .sys { font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .loc .coords { display: block; margin-top: 2px; }
   .loc .body { color: var(--muted); font-size: 14px; }
@@ -117,6 +117,29 @@
   .top10 .where .b { color: var(--muted); font-size: 13px; }
   .top10 .v { text-align: right; font-family: "Orbitron", sans-serif; font-size: 14px; color: var(--text); white-space: nowrap; }
   .top10 .rigs i { width: 8px; height: 8px; }
+
+  .st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .st-alto { background: #45d48322; color: var(--good); } .st-medio { background: #ffcb4722; color: var(--warn); }
+  .st-bajo { background: #ff8a1f22; color: var(--accent); } .st-agotado { background: #ff5d5d22; color: var(--bad); }
+  .st-when { display: block; color: var(--muted); font-size: 12px; }
+  .zone { color: var(--cyan); font-weight: 600; }
+  .zones { margin: 0 0 18px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 10px; }
+  .zones h2 { font-family: "Orbitron", sans-serif; font-size: 15px; letter-spacing: .1em; color: #fff; margin: 0 0 8px; font-weight: 600; }
+  .zones h2 span { color: var(--muted); font-family: "Rajdhani", sans-serif; letter-spacing: 0; font-size: 14px; font-weight: 500; margin-left: 8px; }
+  .zbody { margin: 6px 0 10px; }
+  .zbody h3 { margin: 0 0 6px; font-size: 16px; font-weight: 700; color: var(--text); }
+  .zbody h3 small { color: var(--muted); font-weight: 500; margin-left: 6px; }
+  .zlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .zcard { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; text-align: left; color: inherit; font: inherit; }
+  .zcard:hover, .zcard.on { border-color: var(--accent); }
+  .zcard .zt { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .zcard .zn { font-family: "Orbitron", sans-serif; font-weight: 600; color: var(--cyan); }
+  .zcard .zb { color: var(--accent); font-weight: 700; font-size: 14px; }
+  .zcard .zm { margin-top: 6px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+  .zcard .zm b { color: #fff; }
+  .zcard .zs { margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-dim); color: var(--accent); border-radius: 999px; padding: 2px 10px; margin-left: 8px; font-weight: 600; }
+  .chip button { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; padding: 0; }
 
   footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
   footer p { margin: 6px 0; }
@@ -162,6 +185,11 @@
     <ol id="top10list"></ol>
   </section>
 
+  <section class="zones" id="zones" aria-label="Zonas de minería" hidden>
+    <h2>ZONAS DE MINERÍA<span>minerales de cada zona · en <b style="color:#fff">blanco</b> los confirmados por la flota · pulsa una zona para ver sus sitios</span></h2>
+    <div id="zonelist"></div>
+  </section>
+
   <section class="controls" aria-label="Filtros">
     <label class="search">Buscar sistema o cuerpo
       <input id="q" type="search" placeholder="Ej.: Pegasi Sector" autocomplete="off">
@@ -181,6 +209,13 @@
         <option value="ondulado">Ondulado</option><option value="montañoso">Montañoso</option>
       </select>
     </label>
+    <label>Estado
+      <select id="stateF">
+        <option value="">Cualquiera</option><option value="noagotado">Ocultar agotados</option>
+        <option value="Alto">Alto</option><option value="Medio">Medio</option><option value="Bajo">Bajo</option>
+        <option value="Agotado">Agotado</option><option value="none">Sin marcar</option>
+      </select>
+    </label>
     <label>Ordenar por
       <select id="sort">
         <option value="value">Valor por vuelta</option>
@@ -197,8 +232,8 @@
   <table aria-label="Sitios">
     <thead>
       <tr>
-        <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Plataformas</th>
-        <th>Ubicación</th><th class="num">Más cercano</th><th>Terreno</th><th>Última visita</th>
+        <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Plataformas</th><th>Estado</th>
+        <th>Ubicación</th><th>Terreno</th><th>Última visita</th>
       </tr>
     </thead>
     <tbody id="tbody"></tbody>
@@ -207,7 +242,8 @@
 
   <footer>
     <p><b>Valor por vuelta</b> = máximo de plataformas conseguido × toneladas por recogida × precio medio del mineral. Es lo que da recoger todas las plataformas del sitio una vez.</p>
-    <p>Un <b>sitio</b> es una zona de un solo mineral de unos 50 m. Las plataformas deben estar a <b>47 m</b> como mínimo entre sí. Los sitios visitados hace menos de 2 h pueden estar agotados (se reponen despacio).</p>
+    <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. El <b>estado</b> (alto, medio, bajo, agotado) lo marcan los miembros con los botones del plugin.</p>
+    <p>Un <b>sitio</b> es un lugar de un solo mineral de unos 50 m. Las plataformas deben estar a <b>47 m</b> como mínimo entre sí. Los sitios visitados hace menos de 2 h pueden estar agotados (se reponen despacio).</p>
     <p>Datos enviados por los miembros con el plugin <a href="https://github.com/skullflota/SkullMining">Skull Mining</a> para EDMC.</p>
   </footer>
 </div>
@@ -219,7 +255,7 @@
 <script>
 (function () {
   "use strict";
-  var state = { sites: [], stats: null, demo: false };
+  var state = { sites: [], zones: [], stats: null, demo: false, zoneFilter: null };
   var $ = function (id) { return document.getElementById(id); };
   var nf = new Intl.NumberFormat("es-ES");
 
@@ -261,6 +297,20 @@
     var cls = t === "llano" ? "t-llano" : t === "ondulado" ? "t-ondulado" : t === "montañoso" ? "t-montañoso" : "t-sin";
     return '<span class="badge ' + cls + '">' + esc(t) + "</span>";
   }
+  function zoneLabel(s) {
+    if (s.zone == null || s.zone === "") return '<span class="muted">zona ?</span>';
+    return '<span class="zone">Zona ' + esc(s.zone) + (s.bodySites ? " de " + esc(s.bodySites) : "") + "</span>";
+  }
+  function stateBadge(s, withWhen) {
+    if (!s.state) return '<span class="muted">—</span>';
+    var cls = "st-" + String(s.state).toLowerCase();
+    var w = withWhen && s.stateTime ? '<span class="st-when">' + ago(s.stateTime).text + "</span>" : "";
+    return '<span class="st ' + esc(cls) + '">' + esc(s.state) + "</span>" + w;
+  }
+  function shortBody(s) {
+    var b = String(s.body || ""), sys = String(s.system || "");
+    return b.indexOf(sys) === 0 && b.length > sys.length ? b.slice(sys.length).trim() : b;
+  }
   function coords(s) {
     if (s.lat == null || s.lon == null) return "—";
     return Number(s.lat).toFixed(4) + ", " + Number(s.lon).toFixed(4);
@@ -294,8 +344,14 @@
     var mineral = $("mineral").value;
     var minRigs = Number($("minRigs").value);
     var terrain = $("terrain").value;
+    var stF = $("stateF").value;
+    var zf = state.zoneFilter;
     var sort = $("sort").value;
     var list = state.sites.filter(function (s) {
+      if (zf && (s.body !== zf.body || String(s.zone) !== String(zf.zone))) return false;
+      if (stF === "noagotado" && s.state === "Agotado") return false;
+      if (stF === "none" && s.state) return false;
+      if (stF && stF !== "noagotado" && stF !== "none" && s.state !== stF) return false;
       if (q && ((s.system || "") + " " + (s.body || "")).toLowerCase().indexOf(q) < 0) return false;
       if (mineral && s.mineral !== mineral) return false;
       if (minRigs && (Number(s.rigs) || 0) < minRigs) return false;
@@ -321,8 +377,10 @@
 
   function render() {
     var list = filtered();
-    $("count").textContent = list.length + (list.length === 1 ? " sitio" : " sitios") +
-      (list.length !== state.sites.length ? " de " + state.sites.length : "");
+    $("count").innerHTML = list.length + (list.length === 1 ? " sitio" : " sitios") +
+      (list.length !== state.sites.length ? " de " + state.sites.length : "") +
+      (state.zoneFilter ? '<span class="chip">' + esc(shortBody(state.zoneFilter)) + " · Zona " + esc(state.zoneFilter.zone) +
+        ' <button type="button" id="clearZone" aria-label="Quitar filtro de zona">✕</button></span>' : "");
     var rows = [], cards = [];
     list.forEach(function (s, i) {
       var v = ago(s.lastVisit);
@@ -334,17 +392,19 @@
         '<td><div class="mineral">' + esc(s.mineral) + '</div><div class="price">' + credits(s.price) + "/t</div></td>" +
         '<td class="num"><span class="value">' + credits(s.value) + '</span><div class="price">' + (s.tpc ? esc(s.tpc) + " t/recogida" : "") + "</div></td>" +
         "<td>" + rigsDots(s.rigs) + (s.rigSpacing ? '<div class="price">a ' + meters(s.rigSpacing) + "</div>" : "") + "</td>" +
-        '<td class="loc"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(s.body) +
-          (s.bodySites ? " · " + esc(s.bodySites) + " zonas" : "") + '</div><span class="coords">' + coords(s) + "</span></td>" +
-        '<td class="num">' + meters(s.nearest) + "</td>" +
+        "<td>" + stateBadge(s, true) + "</td>" +
+        '<td class="loc"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(shortBody(s)) +
+          " · " + zoneLabel(s) + '</div><span class="coords">' + coords(s) + "</span>" +
+          (s.nearest ? ' <span class="price">· otro sitio a ' + meters(s.nearest) + "</span>" : "") + "</td>" +
         "<td>" + terrainBadge(s.terrain) + "</td>" +
         "<td>" + visit + "</td></tr>"
       );
       cards.push(
         '<article class="card"><div class="row1"><div><span class="muted">#' + (i + 1) + '</span> <span class="mineral">' + esc(s.mineral) +
         '</span></div><span class="value">' + credits(s.value) + "</span></div>" +
-        '<div class="loc" style="margin-top:6px"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(s.body) + "</div></div>" +
+        '<div class="loc" style="margin-top:6px"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(shortBody(s)) + " · " + zoneLabel(s) + "</div></div>" +
         '<div class="grid">' +
+        '<div><div class="k">Estado</div>' + stateBadge(s, true) + "</div>" +
         '<div><div class="k">Plataformas</div>' + rigsDots(s.rigs) + "</div>" +
         '<div><div class="k">Precio</div>' + credits(s.price) + "/t</div>" +
         '<div><div class="k">Coordenadas</div><span class="coords">' + coords(s) + "</span></div>" +
@@ -373,7 +433,8 @@
     var head = '<li class="head"><span></span><span>Mineral</span><span>Precio</span><span>Ubicación</span>' +
       '<span>Plataformas</span><span style="text-align:right">Valor/vuelta</span><span>Terreno</span></li>';
     $("top10list").innerHTML = (mobile ? "" : head) + list.map(function (s, i) {
-      var where = '<div class="where"><div>' + esc(s.system) + '</div><div class="b">' + esc(s.body) + "</div></div>";
+      var where = '<div class="where"><div>' + esc(s.system) + '</div><div class="b">' + esc(shortBody(s)) + " · " + zoneLabel(s) +
+        (s.state ? " · " + stateBadge(s) : "") + "</div></div>";
       if (mobile) {
         return '<li class="r' + (i + 1) + '"><span class="pos">' + (i + 1) + '</span><span class="m">' + esc(s.mineral) + '</span><span class="p">' +
           credits(s.price) + "/t</span>" + where + '<div class="extra">' + rigsDots(s.rigs) + terrainBadge(s.terrain) +
@@ -387,11 +448,54 @@
   }
   window.addEventListener("resize", function () { if (state.sites.length) renderTop10(); });
 
+  function renderZones() {
+    var bodies = {};
+    function key(sys, body) { return sys + "\u0001" + body; }
+    (state.zones || []).forEach(function (z) {
+      var k = key(z.system, z.body);
+      (bodies[k] = bodies[k] || { system: z.system, body: z.body, zones: {} }).zones[z.zone] = { z: z, sites: [] };
+    });
+    state.sites.forEach(function (s) {
+      if (s.zone == null || s.zone === "") return;
+      var k = key(s.system, s.body);
+      var b = (bodies[k] = bodies[k] || { system: s.system, body: s.body, zones: {} });
+      b.total = b.total || s.bodySites;
+      var zz = (b.zones[s.zone] = b.zones[s.zone] || { z: { zone: s.zone, minerals: "", confirmed: "" }, sites: [] });
+      zz.sites.push(s);
+    });
+    var html = Object.keys(bodies).map(function (k) {
+      var b = bodies[k];
+      var zs = Object.keys(b.zones).sort(function (a, c) { return Number(a) - Number(c); }).map(function (n) {
+        var e = b.zones[n];
+        var conf = {};
+        e.sites.forEach(function (s) { conf[s.mineral] = 1; });
+        String(e.z.confirmed || "").split(",").forEach(function (m) { m = m.trim(); if (m) conf[m] = 1; });
+        var manual = String(e.z.minerals || "").split(/[,;]/).map(function (m) { return m.trim(); }).filter(Boolean);
+        var list = manual.map(function (m) { return conf[m] ? "<b>" + esc(m) + "</b>" : esc(m); });
+        Object.keys(conf).forEach(function (m) { if (manual.indexOf(m) < 0) list.push("<b>" + esc(m) + "</b>"); });
+        var best = e.sites.reduce(function (a, s) { return Math.max(a, Number(s.value) || 0); }, Number(e.z.best) || 0);
+        var on = state.zoneFilter && state.zoneFilter.body === b.body && String(state.zoneFilter.zone) === String(n);
+        return '<button type="button" class="zcard' + (on ? " on" : "") + '" data-body="' + esc(b.body) + '" data-zone="' + esc(n) + '">' +
+          '<div class="zt"><span class="zn">Zona ' + esc(n) + "</span>" + (best ? '<span class="zb">' + credits(best) + "/vuelta</span>" : "") + "</div>" +
+          '<div class="zm">' + (list.length ? list.join(" · ") : "minerales sin anotar") + "</div>" +
+          '<div class="zs">' + e.sites.length + (e.sites.length === 1 ? " sitio conocido" : " sitios conocidos") + "</div></button>";
+      }).join("");
+      var total = b.total || (state.sites.filter(function (s) { return s.body === b.body; })[0] || {}).bodySites;
+      return '<div class="zbody"><h3>' + esc(b.body) + "<small>" + Object.keys(b.zones).length + " zona" +
+        (Object.keys(b.zones).length === 1 ? "" : "s") + " conocida" + (Object.keys(b.zones).length === 1 ? "" : "s") +
+        (total ? " de " + esc(total) : "") + '</small></h3><div class="zlist">' + zs + "</div></div>";
+    }).join("");
+    $("zones").hidden = !html;
+    $("zonelist").innerHTML = html;
+  }
+
   function load(data) {
+    state.zones = (data && data.zones) || [];
     state.sites = (data && data.sites) || [];
     state.stats = data && data.stats;
     renderStats();
     renderTop10();
+    renderZones();
     fillMinerals();
     render();
     if (data && data.updated) {
@@ -416,10 +520,20 @@
     var params = new URLSearchParams(location.search);
     var api = (window.SKULL_API_URL || "").trim();
     var useDemo = params.has("demo") || !api;
-    ["q", "mineral", "minRigs", "terrain", "sort"].forEach(function (id) {
+    ["q", "mineral", "minRigs", "terrain", "stateF", "sort"].forEach(function (id) {
       $(id).addEventListener(id === "q" ? "input" : "change", render);
     });
     document.addEventListener("click", function (e) {
+      var z = e.target.closest("button.zcard");
+      if (z) {
+        var same = state.zoneFilter && state.zoneFilter.body === z.dataset.body && String(state.zoneFilter.zone) === z.dataset.zone;
+        state.zoneFilter = same ? null : { body: z.dataset.body, zone: z.dataset.zone,
+          system: (state.sites.filter(function (s) { return s.body === z.dataset.body; })[0] || {}).system };
+        renderZones(); render();
+        if (!same) $("count").scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      if (e.target.id === "clearZone") { state.zoneFilter = null; renderZones(); render(); return; }
       var b = e.target.closest("button.copy");
       if (!b) return;
       navigator.clipboard && navigator.clipboard.writeText(b.dataset.copy).then(function () {

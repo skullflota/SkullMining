@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import time
 import tkinter as tk
 from typing import Optional
 
@@ -81,7 +82,8 @@ def plugin_start3(plugin_dir: str) -> str:
         on_status=_set_net_status,
     )
     S.uploader.start()
-    S.tracker = skull_tracker.Tracker(_emit, live_path=os.path.join(plugin_dir, "live_session.json"))
+    S.tracker = skull_tracker.Tracker(_emit, live_path=os.path.join(plugin_dir, "live_session.json"),
+                                      state_path=os.path.join(plugin_dir, "zone_state.json"))
     logger.info(f"Skull Mining {skull_tracker.PLUGIN_VERSION} iniciado")
     return "Skull Mining"
 
@@ -100,8 +102,28 @@ def plugin_app(parent: tk.Frame):
     S.label = tk.Label(frame, text="Iniciando…", anchor=tk.W, justify=tk.LEFT)
     S.label.grid(row=0, column=1, sticky=tk.EW)
     frame.columnconfigure(1, weight=1)
+    # Botones para marcar el estado del sitio donde estás (el juego no lo escribe en el journal)
+    row = tk.Frame(frame)
+    row.grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=(2, 0))
+    tk.Label(row, text="Estado del sitio:").pack(side=tk.LEFT)
+    for label, state in (("Alto", "alto"), ("Medio", "medio"), ("Bajo", "bajo"), ("Agotado", "agotado")):
+        tk.Button(row, text=label, padx=4, pady=0, command=lambda st=state: _mark_state(st)).pack(side=tk.LEFT, padx=1)
     frame.after(2000, _refresh_label, frame)
     return frame
+
+
+def _mark_state(state: str) -> None:
+    if S.tracker is None:
+        return
+    try:
+        msg = S.tracker.mark_state(state)
+    except Exception:
+        logger.exception("Error marcando el estado del sitio")
+        msg = "No se pudo marcar el estado"
+    S.flash = msg
+    S.flash_until = time.time() + 6
+    if S.label is not None:
+        S.label["text"] = msg
 
 
 def _refresh_label(frame: tk.Frame) -> None:
@@ -113,6 +135,8 @@ def _refresh_label(frame: tk.Frame) -> None:
             txt = "Configura la URL y la clave en Ajustes"
         elif S.uploader and S.uploader.pending_count():
             txt += f" · {S.uploader.pending_count()} pendientes"
+        if time.time() < getattr(S, "flash_until", 0):
+            txt = S.flash
         S.label["text"] = txt
     frame.after(2000, _refresh_label, frame)
 
