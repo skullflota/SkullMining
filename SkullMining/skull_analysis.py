@@ -23,7 +23,9 @@ MIN_RIG_SPACING_M = 47.0
 RIG_CLUSTER_RADIUS_M = MIN_RIG_SPACING_M / 2
 # Un sitio = zona de un solo mineral de ~50 m como mucho (según Carlos). Plataformas del
 # mismo mineral enlazadas a menos de esta distancia forman el mismo sitio.
-SITE_LINK_M = 60.0
+# Un depósito del juego mide hasta ~100 m de radio (dato del juego) y en él caben varias plataformas.
+# Prueba real 28-sep-2026: dos plataformas de Iridio a 103,5 m dentro de la misma mancha morada.
+SITE_LINK_M = 150.0
 # Dentro de una recogida los refinados llegan cada 1-2 s (sesión real 27-sep-2026).
 BURST_GAP_S = 20.0
 # Refinados sueltos del mismo mineral que llegan poco después se suman a la recogida anterior

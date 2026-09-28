@@ -12,7 +12,7 @@
  *   5. Pasar a la flota la URL de la aplicación web y la clave.
  */
 
-var SITE_MATCH_M = 60;     // un sitio (un solo mineral) mide ~50 m como mucho
+var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 plataformas a 103 m en la misma mancha (28-sep)
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
 var SCHEMA_VERSION = '6';  // sube cuando se añaden columnas o pestañas
