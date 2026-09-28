@@ -110,7 +110,6 @@ def plugin_app(parent: tk.Frame):
         tk.Button(row, text=label, padx=4, pady=0, command=lambda st=state: _mark_state(st)).pack(side=tk.LEFT, padx=1)
     tk.Label(row, text="  ").pack(side=tk.LEFT)
     tk.Button(row, text="Agotado", padx=4, pady=0, command=lambda: _mark_state("agotado")).pack(side=tk.LEFT, padx=1)
-    S.default_fg = S.label.cget("fg")
     frame.after(2000, _refresh_label, frame)
     return frame
 
@@ -142,8 +141,15 @@ def _refresh_label(frame: tk.Frame) -> None:
         if time.time() < getattr(S, "flash_until", 0):
             txt = S.flash
         S.label["text"] = txt
+        # Aviso en naranja; al quitarlo se recupera el color del tema de EDMC
         try:
-            S.label["fg"] = "#ff8a1f" if warn else getattr(S, "default_fg", S.label.cget("fg"))
+            if warn and not getattr(S, "warned", False):
+                S.saved_fg = S.label.cget("fg")
+                S.label["fg"] = "#ff8a1f"
+                S.warned = True
+            elif not warn and getattr(S, "warned", False):
+                S.label["fg"] = S.saved_fg
+                S.warned = False
         except Exception:
             pass
     frame.after(2000, _refresh_label, frame)
