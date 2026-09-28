@@ -102,12 +102,15 @@ def plugin_app(parent: tk.Frame):
     S.label = tk.Label(frame, text="Iniciando…", anchor=tk.W, justify=tk.LEFT)
     S.label.grid(row=0, column=1, sticky=tk.EW)
     frame.columnconfigure(1, weight=1)
-    # Botones para marcar el estado del sitio donde estás (el juego no lo escribe en el journal)
+    # Botones para marcar el sitio donde estás (el juego no escribe la densidad en el journal)
     row = tk.Frame(frame)
     row.grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=(2, 0))
-    tk.Label(row, text="Estado del sitio:").pack(side=tk.LEFT)
-    for label, state in (("Alto", "alto"), ("Medio", "medio"), ("Bajo", "bajo"), ("Agotado", "agotado")):
+    tk.Label(row, text="Densidad:").pack(side=tk.LEFT)
+    for label, state in (("Alta", "alto"), ("Media", "medio"), ("Baja", "bajo")):
         tk.Button(row, text=label, padx=4, pady=0, command=lambda st=state: _mark_state(st)).pack(side=tk.LEFT, padx=1)
+    tk.Label(row, text="  ").pack(side=tk.LEFT)
+    tk.Button(row, text="Agotado", padx=4, pady=0, command=lambda: _mark_state("agotado")).pack(side=tk.LEFT, padx=1)
+    S.default_fg = S.label.cget("fg")
     frame.after(2000, _refresh_label, frame)
     return frame
 
@@ -135,9 +138,14 @@ def _refresh_label(frame: tk.Frame) -> None:
             txt = "Configura la URL y la clave en Ajustes"
         elif S.uploader and S.uploader.pending_count():
             txt += f" · {S.uploader.pending_count()} pendientes"
+        warn = _enabled() and S.tracker.zone_missing()
         if time.time() < getattr(S, "flash_until", 0):
             txt = S.flash
         S.label["text"] = txt
+        try:
+            S.label["fg"] = "#ff8a1f" if warn else getattr(S, "default_fg", S.label.cget("fg"))
+        except Exception:
+            pass
     frame.after(2000, _refresh_label, frame)
 
 

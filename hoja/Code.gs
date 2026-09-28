@@ -15,7 +15,7 @@
 var SITE_MATCH_M = 60;     // un sitio (un solo mineral) mide ~50 m como mucho
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '5';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '6';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
 // Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
 // el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
@@ -43,6 +43,8 @@ var HEADERS = {
   'Tramos': ['SessionID', 'De', 'A', 'Línea recta (m)', 'Recorrido (m)', 'Tiempo (s)',
              'Vel. efectiva (m/s)', 'Sinuosidad'],
   'Recorridos': ['SessionID', 'Parte', 'Datos (t,lat,lon,alt;...)'],
+  // Datos en bruto de cada tonelada (plugin 0.5.0+). Las partes se concatenan en orden.
+  'Recogidas': ['SessionID', 'Inicio (epoch s)', 'Parte', 'Datos (décimas de s,tipo,lat,lon,zona;...)'],
   'Cuerpos': ['Sistema', 'Cuerpo', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Radio (m)', 'Atmósfera',
               'Distancia (ls)', 'Sitios de minería', 'Señales', 'Actualizado', 'CMDR'],
   'Ventas': ['Fecha', 'CMDR', 'Tipo', 'Nombre', 'Cantidad', 'Precio venta', 'Total', 'Sistema', 'MarketID'],
@@ -288,6 +290,13 @@ function handleSession_(d) {
   var rc = sheet_('Recorridos');
   for (var i = 0, part = 1; i < track.length; i += TRACK_CHUNK, part++) {
     rc.appendRow([d.session_id, part, track.slice(i, i + TRACK_CHUNK)]);
+  }
+  var raw = d.refined_raw || '';
+  if (raw) {
+    var rg = sheet_('Recogidas');
+    for (var k = 0, pr = 1; k < raw.length; k += TRACK_CHUNK, pr++) {
+      rg.appendRow([d.session_id, d.session_start_t || '', pr, raw.slice(k, k + TRACK_CHUNK)]);
+    }
   }
   if (d.body) handleBody_({ system: d.system, body: d.body, planet_class: d.planet_class, gravity_g: d.gravity_g,
                             temp_k: d.temp_k, radius_m: d.planet_radius_m, atmosphere: d.atmosphere,
@@ -598,6 +607,18 @@ function notifySession_(d, news, esName, prices) {
   for (var i = 0; i < embeds.length; i += 10) sendDiscord_({ embeds: embeds.slice(i, i + 10) });
 }
 
+function notifyDiscovery_(d) {
+  var cfg = discordConfig_();
+  if (!cfg.url || cfg.mode === 'no') return;
+  var raw = JSON.stringify(d.raw || {});
+  sendDiscord_({ embeds: [{
+    title: '🆕 Novedad en el journal: ' + d.event, color: 0x4fd1ff, url: WEB_URL,
+    description: 'El plugin ha visto algo que no conocía. Puede ser el evento oficial de minería en superficie.\n```json\n' +
+      raw.slice(0, 1500) + (raw.length > 1500 ? '…' : '') + '\n```',
+    footer: { text: 'Pestaña Eventos de la hoja · Skull Mining' }
+  }] });
+}
+
 function notifyState_(d, label, siteId, esName) {
   var cfg = discordConfig_();
   if (!cfg.url || cfg.mode === 'no' || !cfg.states || d.state !== 'agotado' || !siteId) return;
@@ -664,8 +685,13 @@ function handleBody_(d) {
 }
 
 function handleEvent_(d) {
-  sheet_('Eventos').appendRow([d.time, d.cmdr, d.event, d.system, d.body, d.lat, d.lon,
-                               JSON.stringify(d.raw || {}).slice(0, 45000)]);
+  var sh = sheet_('Eventos');
+  var seen = sh.getLastRow() > 1 && sh.getRange(2, 3, sh.getLastRow() - 1, 1).getValues()
+    .some(function (r) { return r[0] === d.event; });
+  sh.appendRow([d.time, d.cmdr, d.event, d.system, d.body, d.lat, d.lon,
+                JSON.stringify(d.raw || {}).slice(0, 45000)]);
+  // Primera vez que aparece: probablemente Frontier ha añadido datos nuevos de minería
+  if (!seen) { try { notifyDiscovery_(d); } catch (err) { Logger.log('Discord: ' + err); } }
 }
 
 function priceMap_() {

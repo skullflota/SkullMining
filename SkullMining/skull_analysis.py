@@ -405,6 +405,32 @@ def downsample(track: List[Point], max_points: int = 1500) -> List[Point]:
     return out
 
 
+def encode_refined(refined: List[dict], t0: float) -> str:
+    """Datos en bruto de cada tonelada refinada, para poder recalcular sesiones antiguas.
+
+    Formato 't,tipo,lat,lon,zona;...' con t en décimas de segundo desde el inicio.
+    Campos vacíos si no se conocen.
+    """
+    parts = []
+    for r in refined:
+        lat, lon, z = r.get("lat"), r.get("lon"), r.get("zone")
+        parts.append("{},{},{},{},{}".format(
+            int(round((r["t"] - t0) * 10)), r.get("type", ""),
+            "" if lat is None else f"{lat:.6f}", "" if lon is None else f"{lon:.6f}",
+            "" if z is None else z))
+    return ";".join(parts)
+
+
+def decode_refined(text: str, t0: float) -> List[dict]:
+    out = []
+    for part in filter(None, (text or "").split(";")):
+        t, typ, lat, lon, z = (part.split(",") + ["", "", "", ""])[:5]
+        out.append({"t": t0 + int(t) / 10, "type": typ,
+                    "lat": float(lat) if lat else None, "lon": float(lon) if lon else None,
+                    "zone": int(z) if z else None})
+    return out
+
+
 def encode_track(track: List[Point], t0: float) -> str:
     """Formato compacto 't,lat,lon,alt;...' con t en segundos desde el inicio."""
     parts = []

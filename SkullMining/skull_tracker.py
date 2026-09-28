@@ -16,7 +16,7 @@ from typing import Callable, Dict, List, Optional
 
 import skull_analysis as analysis
 
-PLUGIN_VERSION = "0.4.1"
+PLUGIN_VERSION = "0.5.0"
 
 # Bits de Flags / Flags2 del Status.json
 FLAG_HAS_LATLONG = 1 << 21
@@ -56,7 +56,27 @@ def site_signal_index(text: Optional[str]) -> Optional[int]:
     m = SITE_SIGNAL_RE.search(text)
     return int(m.group(1)) if m else None
 # Palabras que delatan eventos nuevos del Rhino que aún no conocemos
-DISCOVERY_KEYWORDS = ("mining", "rig", "deposit", "refin", "rhino", "extract", "srv", "prospect", "harvest")
+DISCOVERY_KEYWORDS = ("mining", "rig", "deposit", "refin", "rhino", "extract", "srv", "prospect",
+                      "harvest", "planetary", "chunk", "deplet", "density", "remaining", "surface")
+# Campos conocidos de los eventos que usamos. Si Frontier añade otros (p. ej. el depósito o su
+# desgaste en MiningRefined), se envían a la hoja para aprovecharlos cuanto antes.
+KNOWN_FIELDS = {
+    "MiningRefined": {"timestamp", "event", "Type", "Type_Localised"},
+    "Touchdown": {"timestamp", "event", "PlayerControlled", "Taxi", "Multicrew", "StarSystem", "SystemAddress",
+                  "Body", "BodyID", "OnStation", "OnPlanet", "Latitude", "Longitude", "NearestDestination",
+                  "NearestDestination_Localised"},
+    "LaunchSRV": {"timestamp", "event", "SRVType", "SRVType_Localised", "Loadout", "ID", "PlayerControlled"},
+    "DockSRV": {"timestamp", "event", "SRVType", "SRVType_Localised", "ID"},
+    "SAASignalsFound": {"timestamp", "event", "BodyName", "SystemAddress", "BodyID", "Signals", "Genuses"},
+    "CargoTransfer": {"timestamp", "event", "Transfers"},
+    "Status": {"timestamp", "event", "Flags", "Flags2", "Pips", "FireGroup", "GuiFocus", "Fuel", "Cargo",
+               "LegalState", "Latitude", "Longitude", "Heading", "Altitude", "BodyName", "PlanetRadius",
+               "Balance", "Destination", "Oxygen", "Health", "Temperature", "SelectedWeapon",
+               "SelectedWeapon_Localised", "Gravity"},
+    "Status.Destination": {"System", "Body", "Name", "Name_Localised"},
+}
+# Máximo de avisos por evento nuevo en cada arranque de EDMC (por si el evento se repite mucho)
+DISCOVERY_MAX_PER_RUN = 5
 
 # Mercancías de superficie (nombre interno probable). Sirve para registrar ventas
 # aunque EDMC se haya reiniciado después de minar.
@@ -176,6 +196,7 @@ class Tracker:
         self.body_names: Dict[str, str] = {}   # "sistema:bodyid" -> nombre del cuerpo
         self.zone_target: Optional[dict] = None
         self.zone_anchors: Dict[str, list] = {}  # "cuerpo|3" -> [lat, lon, t, fuente]
+        self.discovered: Dict[str, int] = {}     # avisos de novedades enviados en este arranque
         self._restore_state()
         self._restore_live()
 
@@ -310,7 +331,7 @@ class Tracker:
         """El jugador marca el estado del sitio donde está (alto, medio, bajo, agotado)."""
         state = state.lower()
         if state not in SITE_STATES:
-            return "Estado no válido"
+            return "Marca no válida"
         s = self.status
         if not s.get("has_ll") or not (s.get("in_srv") or s.get("on_foot")):
             return "Para marcar el estado tienes que estar en la superficie"
@@ -332,7 +353,9 @@ class Tracker:
         if self.session:
             self.session.events.append({"t": t, "event": "EstadoSitio", "state": state, "lat": lat, "lon": lon})
         self.emit("state", rec)
-        return f"Estado '{state}' enviado" + (f" ({mineral})" if mineral else "")
+        what = "Agotado enviado" if state == "agotado" else \
+            "Densidad " + {"alto": "alta", "medio": "media", "bajo": "baja"}[state] + " enviada"
+        return what + (f" ({mineral})" if mineral else "")
 
     def _drop_live(self) -> None:
         if self.live_path and os.path.exists(self.live_path):
@@ -354,6 +377,9 @@ class Tracker:
 
     # ------------------------------------------------------------------ status
     def on_status(self, entry: dict) -> None:
+        self._check_fields("Status", entry)
+        if isinstance(entry.get("Destination"), dict):
+            self._check_fields("Status.Destination", entry["Destination"], entry)
         flags = entry.get("Flags", 0) or 0
         flags2 = entry.get("Flags2", 0) or 0
         t = parse_ts(entry.get("timestamp"))
@@ -520,13 +546,30 @@ class Tracker:
                     "system": self.system.get("name"),
                 })
 
-        if ev not in KNOWN_EVENTS and any(k in ev.lower() for k in DISCOVERY_KEYWORDS):
-            rec = {"time": iso(t), "cmdr": self.cmdr, "event": ev, "raw": entry,
-                   "system": self.system.get("name"), "body": self.status.get("body"),
-                   "lat": self.status.get("lat"), "lon": self.status.get("lon")}
-            if self.session:
-                self.session.events.append({"t": t, "event": ev, "raw": entry})
-            self.emit("event", rec)
+        if ev not in KNOWN_EVENTS and not ev.startswith("Colonisation") \
+                and any(k in ev.lower() for k in DISCOVERY_KEYWORDS):
+            self._report_discovery(ev, entry, t)
+        elif ev in KNOWN_FIELDS:
+            self._check_fields(ev, entry)
+
+    # ----------------------------------------------------------- novedades del juego
+    def _check_fields(self, name: str, obj: dict, raw: Optional[dict] = None) -> None:
+        new = sorted(k for k in obj if k not in KNOWN_FIELDS.get(name, ()))
+        if new:
+            self._report_discovery(f"CamposNuevos:{name}:" + ",".join(new), raw or obj,
+                                   parse_ts((raw or obj).get("timestamp")))
+
+    def _report_discovery(self, ev: str, entry: dict, t: float) -> None:
+        n = self.discovered.get(ev, 0)
+        if n >= DISCOVERY_MAX_PER_RUN:
+            return
+        self.discovered[ev] = n + 1
+        rec = {"time": iso(t), "cmdr": self.cmdr, "event": ev, "raw": entry,
+               "system": self.system.get("name"), "body": self.status.get("body"),
+               "lat": self.status.get("lat"), "lon": self.status.get("lon")}
+        if self.session:
+            self.session.events.append({"t": t, "event": ev, "raw": entry})
+        self.emit("event", rec)
 
     # ---------------------------------------------------------------- sessions
     def _open_session(self, t: float) -> None:
@@ -587,8 +630,12 @@ class Tracker:
             "close_reason": reason,
             "alt_from_avg_radius": sess.to_dict()["alt_from_avg_radius"],
             "summary": summary,
-            "unknown_events": [e["event"] for e in sess.events if e.get("raw")],
+            "unknown_events": sorted({e["event"] for e in sess.events if e.get("raw")}),
             "track": analysis.encode_track(track, sess.start_t) if track else "",
+            # Cada tonelada con su hora, posición y zona: permite recalcular la sesión más adelante
+            "refined_raw": analysis.encode_refined(sess.refined, sess.start_t),
+            "session_start_t": sess.start_t,
+            "zone_known": any(r.get("zone") is not None for r in sess.refined),
         }
         self.emit("session", rec)
         return rec
@@ -608,10 +655,16 @@ class Tracker:
             else:
                 site["zone"] = self.zone_at(sess.body, site["lat"], site["lon"], R)
 
+    def zone_missing(self) -> bool:
+        """En el SRV grabando, pero sin saber en qué zona estamos."""
+        return bool(self.session) and self.status.get("has_ll", False) and self.current_zone() is None
+
     def live_text(self) -> str:
         if not self.session:
             return "Esperando sesión en superficie"
         n = len(self.session.refined)
         z = self.current_zone()
-        zt = f" · zona {z}" if z is not None else ""
-        return f"Grabando en {self.session.body}{zt} · {n} t refinadas"
+        if z is None:
+            return (f"Grabando en {self.session.body} · {n} t refinadas\n"
+                    "⚠ Zona desconocida: fija la zona como destino (mapa del planeta o panel izquierdo)")
+        return f"Grabando en {self.session.body} · zona {z} · {n} t refinadas"
