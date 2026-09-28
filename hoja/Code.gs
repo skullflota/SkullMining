@@ -15,9 +15,12 @@
 var SITE_MATCH_M = 60;     // un sitio (un solo mineral) mide ~50 m como mucho
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '4';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '5';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
-var STATE_LABELS = { alto: 'Alto', medio: 'Medio', bajo: 'Bajo', agotado: 'Agotado' };
+// Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
+// el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
+var STATE_LABELS = { alto: 'Alta', medio: 'Media', bajo: 'Baja', agotado: 'Agotado' };
+var OLD_DENSITY = { 'Alto': 'Alta', 'Medio': 'Media', 'Bajo': 'Baja' };
 
 var HEADERS = {
   'Sitios': ['SiteID', 'Sistema', 'Cuerpo', 'Mineral', 'Nombre interno', 'Precio (Cr)', 'Lat', 'Lon',
@@ -25,7 +28,7 @@ var HEADERS = {
              'Valor por vuelta (Cr)', 'Visitas', 'Recogidas', 'Toneladas totales', 'Sitio más cercano (m)',
              'Mismo mineral más cercano (m)', 'Terreno zona', 'Vel. efectiva zona (m/s)', 'Señal zona',
              'Sitios minería en cuerpo', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Última visita', 'Último CMDR',
-             'Zona', 'Estado', 'Estado fecha', 'Estado CMDR'],
+             'Zona', 'Densidad', 'Densidad fecha', 'Densidad CMDR', 'Agotado', 'Agotado CMDR'],
   'Visitas': ['SessionID', 'SiteID', 'Fecha', 'CMDR', 'Mineral', 'Plataformas', 'Dist. mín entre plataformas (m)',
               'Extensión (m)', 'Recogidas', 'Toneladas', 'T/recogida', 'Terreno zona', 'Vel. efectiva zona (m/s)',
               'Zona'],
@@ -96,6 +99,7 @@ function ensureSchema_(force) {
   var props = PropertiesService.getScriptProperties();
   if (!force && props.getProperty('SCHEMA_VERSION') === SCHEMA_VERSION) return;
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var migrateStates = renameStateColumns_(ss);
   Object.keys(HEADERS).forEach(function (name) {
     var want = HEADERS[name];
     var sh = ss.getSheetByName(name) || ss.insertSheet(name);
@@ -111,7 +115,21 @@ function ensureSchema_(force) {
       sh.getRange(1, have.length + 1, 1, extra.length).setValues([extra]).setFontWeight('bold').setBackground('#fff2cc');
     }
   });
+  if (migrateStates) recomputeAllStates_();
   props.setProperty('SCHEMA_VERSION', SCHEMA_VERSION);
+}
+
+// v5: la columna "Estado" pasa a llamarse "Densidad" y el agotado va en columnas aparte.
+function renameStateColumns_(ss) {
+  var sh = ss.getSheetByName('Sitios');
+  if (!sh || sh.getLastRow() === 0) return false;
+  var have = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var map = { 'Estado': 'Densidad', 'Estado fecha': 'Densidad fecha', 'Estado CMDR': 'Densidad CMDR' };
+  var changed = false;
+  have.forEach(function (h, i) {
+    if (map[h]) { sh.getRange(1, i + 1).setValue(map[h]); changed = true; }
+  });
+  return changed;
 }
 
 // ---------------------------------------------------------------------- entrada
@@ -169,7 +187,8 @@ var PUBLIC_SITE_FIELDS = {
   'Toneladas totales': 'tonnes', 'Sitio más cercano (m)': 'nearest', 'Mismo mineral más cercano (m)': 'nearestSame',
   'Terreno zona': 'terrain', 'Vel. efectiva zona (m/s)': 'speed', 'Señal zona': 'signal',
   'Sitios minería en cuerpo': 'bodySites', 'Tipo planeta': 'planetClass', 'Gravedad (g)': 'gravity',
-  'Temp (K)': 'temp', 'Última visita': 'lastVisit', 'Zona': 'zone', 'Estado': 'state', 'Estado fecha': 'stateTime'
+  'Temp (K)': 'temp', 'Última visita': 'lastVisit', 'Zona': 'zone', 'Densidad': 'density',
+  'Densidad fecha': 'densityTime', 'Agotado': 'depleted'
 };
 
 function publicRanking_(callback) {
@@ -449,12 +468,48 @@ function findSiteNear_(system, body, type, lat, lon, R) {
   return best;
 }
 
+// Densidad = la última marcada. Agotado = fecha de la última marca de agotado, salvo que
+// después alguien haya marcado una densidad (el sitio seguía activo o fue un error).
 function setSiteState_(siteId, label, when, cmdr) {
   var sh = sheet_('Sitios');
   var H = HEADERS['Sitios'];
   var r = findRow_('Sitios', 1, siteId);
   if (r < 0) return;
-  sh.getRange(r, H.indexOf('Estado') + 1, 1, 3).setValues([[label, when, cmdr || '']]);
+  if (label === 'Agotado') {
+    sh.getRange(r, H.indexOf('Agotado') + 1, 1, 2).setValues([[when, cmdr || '']]);
+  } else {
+    sh.getRange(r, H.indexOf('Densidad') + 1, 1, 3).setValues([[OLD_DENSITY[label] || label, when, cmdr || '']]);
+    sh.getRange(r, H.indexOf('Agotado') + 1, 1, 2).setValues([['', '']]);
+  }
+}
+
+// Recalcula densidad y agotado de un sitio (o de todos) a partir del historial de la pestaña Estados.
+function recomputeSiteStates_(siteId) {
+  var v = sheet_('Estados').getDataRange().getValues().slice(1)
+    .filter(function (r) { return r[9] && (!siteId || r[9] === siteId); })
+    .sort(function (a, b) { return timeOf_(a[0]) - timeOf_(b[0]); });
+  var seen = {};
+  v.forEach(function (r) { seen[r[9]] = 1; setSiteState_(r[9], r[8], r[0], r[1]); });
+  return seen;
+}
+
+function recomputeAllStates_() {
+  // Primero, pasar los datos de la columna vieja "Estado" a su sitio nuevo.
+  var sh = sheet_('Sitios');
+  var H = HEADERS['Sitios'];
+  var v = sh.getDataRange().getValues();
+  var cD = H.indexOf('Densidad');
+  for (var i = 1; i < v.length; i++) {
+    var d = v[i][cD];
+    if (!v[i][0]) continue;
+    if (d === 'Agotado') {
+      sh.getRange(i + 1, cD + 1, 1, 5).setValues([['', '', '', v[i][cD + 1], v[i][cD + 2]]]);
+    } else if (OLD_DENSITY[d]) {
+      sh.getRange(i + 1, cD + 1).setValue(OLD_DENSITY[d]);
+    }
+  }
+  // Después, rehacer con el historial completo de la pestaña Estados.
+  recomputeSiteStates_(null);
 }
 
 // Estados marcados antes de que existiera el sitio (se marcó al escanear, antes de minar)
@@ -463,15 +518,15 @@ function applyPendingStates_(siteId, system, body, type, lat, lon, R) {
   var sh = sheet_('Estados');
   var v = sh.getDataRange().getValues();
   var esName = esNames_();
-  var latest = null;
+  var found = false;
   for (var i = 1; i < v.length; i++) {
     if (v[i][9] || v[i][2] !== system || v[i][3] !== body) continue;
     if (v[i][7] && v[i][7] !== (esName[type] || type)) continue;
     if (haversine_(lat, lon, v[i][5], v[i][6], R) > SITE_MATCH_M) continue;
     sh.getRange(i + 1, 10).setValue(siteId);
-    if (!latest || String(v[i][0]) > String(latest[0])) latest = v[i];
+    found = true;
   }
-  if (latest) setSiteState_(siteId, latest[8], latest[0], latest[1]);
+  if (found) recomputeSiteStates_(siteId);
 }
 
 // ----------------------------------------------------------------------- discord
@@ -521,7 +576,8 @@ function siteEmbed_(title, color, row, cmdr) {
     fields: [
       { name: 'Plataformas', value: String(row['Máx plataformas'] || 0), inline: true },
       { name: 'Valor por vuelta', value: credits_(row['Valor por vuelta (Cr)']), inline: true },
-      { name: 'Terreno', value: String(row['Terreno zona'] || 'sin datos'), inline: true }
+      { name: 'Terreno', value: String(row['Terreno zona'] || 'sin datos'), inline: true },
+      { name: 'Densidad', value: String(row['Densidad'] || 'sin marcar'), inline: true }
     ],
     footer: { text: (cmdr ? (/^cmdr /i.test(cmdr) ? cmdr : 'CMDR ' + cmdr) + ' · ' : '') + 'Skull Mining' }
   };
@@ -670,6 +726,7 @@ function haversine_(lat1, lon1, lat2, lon2, R) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
+function timeOf_(x) { return x instanceof Date ? x.getTime() : (Date.parse(x) || 0); }
 function round_(x, n) { var f = Math.pow(10, n); return Math.round(x * f) / f; }
 function nz_(x) { return x === null || x === undefined ? '' : x; }
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }

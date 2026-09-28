@@ -50,7 +50,7 @@
   .stat .k { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
   .stat .v { font-family: "Orbitron", sans-serif; font-size: 22px; font-weight: 600; color: #fff; margin-top: 2px; }
 
-  .controls { display: grid; grid-template-columns: minmax(0,1.8fr) repeat(5, minmax(0,1fr)); gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+  .controls { display: grid; grid-template-columns: minmax(0,1.6fr) repeat(6, minmax(0,1fr)); gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
   .controls label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
   .controls input, .controls select {
     background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
@@ -119,8 +119,9 @@
   .top10 .rigs i { width: 8px; height: 8px; }
 
   .st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
-  .st-alto { background: #45d48322; color: var(--good); } .st-medio { background: #ffcb4722; color: var(--warn); }
-  .st-bajo { background: #ff8a1f22; color: var(--accent); } .st-agotado { background: #ff5d5d22; color: var(--bad); }
+  .st-alta { background: #45d48322; color: var(--good); } .st-media { background: #ffcb4722; color: var(--warn); }
+  .st-baja { background: #ff8a1f22; color: var(--accent); } .st-agotado { background: #ff5d5d22; color: var(--bad); }
+  tr.depleted td, .card.depleted { opacity: .55; }
   .st-when { display: block; color: var(--muted); font-size: 12px; }
   .zone { color: var(--cyan); font-weight: 600; }
   .zones { margin: 0 0 18px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 10px; }
@@ -209,16 +210,21 @@
         <option value="ondulado">Ondulado</option><option value="montañoso">Montañoso</option>
       </select>
     </label>
-    <label>Estado
-      <select id="stateF">
-        <option value="">Cualquiera</option><option value="noagotado">Ocultar agotados</option>
-        <option value="Alto">Alto</option><option value="Medio">Medio</option><option value="Bajo">Bajo</option>
-        <option value="Agotado">Agotado</option><option value="none">Sin marcar</option>
+    <label>Densidad
+      <select id="densityF">
+        <option value="">Cualquiera</option>
+        <option value="Alta">Alta</option><option value="Media">Media</option><option value="Baja">Baja</option>
+        <option value="none">Sin marcar</option>
+      </select>
+    </label>
+    <label>Agotados
+      <select id="depletedF">
+        <option value="hide">Ocultar</option><option value="show">Mostrar</option><option value="only">Solo agotados</option>
       </select>
     </label>
     <label>Ordenar por
       <select id="sort">
-        <option value="value">Valor por vuelta</option>
+        <option value="value">Valor/vuelta</option>
         <option value="price">Precio del mineral</option>
         <option value="rigs">Nº de plataformas</option>
         <option value="nearest">Sitio más cercano</option>
@@ -232,7 +238,7 @@
   <table aria-label="Sitios">
     <thead>
       <tr>
-        <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Plataformas</th><th>Estado</th>
+        <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Plataformas</th><th>Densidad</th>
         <th>Ubicación</th><th>Terreno</th><th>Última visita</th>
       </tr>
     </thead>
@@ -242,8 +248,8 @@
 
   <footer>
     <p><b>Valor por vuelta</b> = máximo de plataformas conseguido × toneladas por recogida × precio medio del mineral. Es lo que da recoger todas las plataformas del sitio una vez.</p>
-    <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. El <b>estado</b> (alto, medio, bajo, agotado) lo marcan los miembros con los botones del plugin.</p>
-    <p>Un <b>sitio</b> es un lugar de un solo mineral de unos 50 m. Las plataformas deben estar a <b>47 m</b> como mínimo entre sí. Los sitios visitados hace menos de 2 h pueden estar agotados (se reponen despacio).</p>
+    <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. La <b>densidad</b> (alta, media, baja) es fija: la genera el juego para cada sitio. <b>Agotado</b> va aparte: el desgaste lo comparten todos los jugadores y, por lo que se sabe, un sitio agotado no se regenera. Las dos cosas las marcan los miembros con los botones del plugin (Alto, Medio, Bajo, Agotado).</p>
+    <p>Un <b>sitio</b> es un lugar de un solo mineral de unos 50 m. Las plataformas deben estar a <b>47 m</b> como mínimo entre sí. </p>
     <p>Datos enviados por los miembros con el plugin <a href="https://github.com/skullflota/SkullMining">Skull Mining</a> para EDMC.</p>
   </footer>
 </div>
@@ -302,10 +308,21 @@
     return '<span class="zone">Zona ' + esc(s.zone) + (s.bodySites ? " de " + esc(s.bodySites) : "") + "</span>";
   }
   function stateBadge(s, withWhen) {
-    if (!s.state) return '<span class="muted">—</span>';
-    var cls = "st-" + String(s.state).toLowerCase();
-    var w = withWhen && s.stateTime ? '<span class="st-when">' + ago(s.stateTime).text + "</span>" : "";
-    return '<span class="st ' + esc(cls) + '">' + esc(s.state) + "</span>" + w;
+    var out = "";
+    if (s.density) out += '<span class="st st-' + esc(String(s.density).toLowerCase()) + '">' + esc(s.density) + "</span> ";
+    if (s.depleted) out += '<span class="st st-agotado">Agotado</span>' +
+      (withWhen ? '<span class="st-when">' + ago(s.depleted).text + "</span>" : "");
+    return out || '<span class="muted">—</span>';
+  }
+  // Compatibilidad con la hoja antigua (un solo campo "state")
+  var OLD_DENSITY = { Alto: "Alta", Medio: "Media", Bajo: "Baja" };
+  function normalize(s) {
+    if (s.state && s.density === undefined) {
+      if (s.state === "Agotado") s.depleted = s.stateTime || true;
+      else s.density = OLD_DENSITY[s.state] || s.state;
+    }
+    if (s.density && OLD_DENSITY[s.density]) s.density = OLD_DENSITY[s.density];
+    return s;
   }
   function shortBody(s) {
     var b = String(s.body || ""), sys = String(s.system || "");
@@ -344,14 +361,15 @@
     var mineral = $("mineral").value;
     var minRigs = Number($("minRigs").value);
     var terrain = $("terrain").value;
-    var stF = $("stateF").value;
+    var dF = $("densityF").value, agF = $("depletedF").value;
     var zf = state.zoneFilter;
     var sort = $("sort").value;
     var list = state.sites.filter(function (s) {
       if (zf && (s.body !== zf.body || String(s.zone) !== String(zf.zone))) return false;
-      if (stF === "noagotado" && s.state === "Agotado") return false;
-      if (stF === "none" && s.state) return false;
-      if (stF && stF !== "noagotado" && stF !== "none" && s.state !== stF) return false;
+      if (agF === "hide" && s.depleted) return false;
+      if (agF === "only" && !s.depleted) return false;
+      if (dF === "none" && s.density) return false;
+      if (dF && dF !== "none" && s.density !== dF) return false;
       if (q && ((s.system || "") + " " + (s.body || "")).toLowerCase().indexOf(q) < 0) return false;
       if (mineral && s.mineral !== mineral) return false;
       if (minRigs && (Number(s.rigs) || 0) < minRigs) return false;
@@ -384,7 +402,7 @@
     var rows = [], cards = [];
     list.forEach(function (s, i) {
       var v = ago(s.lastVisit);
-      var cls = i < 3 && $("sort").value === "value" ? "top" + (i + 1) : "";
+      var cls = (i < 3 && $("sort").value === "value" ? "top" + (i + 1) : "") + (s.depleted ? " depleted" : "");
       var visit = v.text + (v.fresh ? '<span class="fresh">⚠ recién minado</span>' : "");
       rows.push(
         '<tr class="' + cls + '">' +
@@ -400,11 +418,11 @@
         "<td>" + visit + "</td></tr>"
       );
       cards.push(
-        '<article class="card"><div class="row1"><div><span class="muted">#' + (i + 1) + '</span> <span class="mineral">' + esc(s.mineral) +
+        '<article class="card' + (s.depleted ? " depleted" : "") + '"><div class="row1"><div><span class="muted">#' + (i + 1) + '</span> <span class="mineral">' + esc(s.mineral) +
         '</span></div><span class="value">' + credits(s.value) + "</span></div>" +
         '<div class="loc" style="margin-top:6px"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(shortBody(s)) + " · " + zoneLabel(s) + "</div></div>" +
         '<div class="grid">' +
-        '<div><div class="k">Estado</div>' + stateBadge(s, true) + "</div>" +
+        '<div><div class="k">Densidad</div>' + stateBadge(s, true) + "</div>" +
         '<div><div class="k">Plataformas</div>' + rigsDots(s.rigs) + "</div>" +
         '<div><div class="k">Precio</div>' + credits(s.price) + "/t</div>" +
         '<div><div class="k">Coordenadas</div><span class="coords">' + coords(s) + "</span></div>" +
@@ -425,7 +443,7 @@
 
   function renderTop10() {
     var num = function (v) { return v == null || v === "" ? -1 : Number(v); };
-    var list = state.sites.slice().sort(function (a, b) {
+    var list = state.sites.filter(function (s) { return !s.depleted; }).sort(function (a, b) {
       return num(b.price) - num(a.price) || num(b.rigs) - num(a.rigs) || num(b.value) - num(a.value);
     }).slice(0, 10);
     $("top10").hidden = !list.length;
@@ -434,7 +452,7 @@
       '<span>Plataformas</span><span style="text-align:right">Valor/vuelta</span><span>Terreno</span></li>';
     $("top10list").innerHTML = (mobile ? "" : head) + list.map(function (s, i) {
       var where = '<div class="where"><div>' + esc(s.system) + '</div><div class="b">' + esc(shortBody(s)) + " · " + zoneLabel(s) +
-        (s.state ? " · " + stateBadge(s) : "") + "</div></div>";
+        (s.density ? " · " + stateBadge(s) : "") + "</div></div>";
       if (mobile) {
         return '<li class="r' + (i + 1) + '"><span class="pos">' + (i + 1) + '</span><span class="m">' + esc(s.mineral) + '</span><span class="p">' +
           credits(s.price) + "/t</span>" + where + '<div class="extra">' + rigsDots(s.rigs) + terrainBadge(s.terrain) +
@@ -491,7 +509,7 @@
 
   function load(data) {
     state.zones = (data && data.zones) || [];
-    state.sites = (data && data.sites) || [];
+    state.sites = ((data && data.sites) || []).map(normalize);
     state.stats = data && data.stats;
     renderStats();
     renderTop10();
@@ -520,7 +538,7 @@
     var params = new URLSearchParams(location.search);
     var api = (window.SKULL_API_URL || "").trim();
     var useDemo = params.has("demo") || !api;
-    ["q", "mineral", "minRigs", "terrain", "stateF", "sort"].forEach(function (id) {
+    ["q", "mineral", "minRigs", "terrain", "densityF", "depletedF", "sort"].forEach(function (id) {
       $(id).addEventListener(id === "q" ? "input" : "change", render);
     });
     document.addEventListener("click", function (e) {

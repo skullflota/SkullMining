@@ -52,11 +52,11 @@ Distancia mínima entre plataformas: **unos 47 m**. Frontier no la ha publicado;
 
 Pendiente de calibrar con más sesiones: los umbrales de velocidad y sinuosidad de llano, ondulado y montañoso.
 
-## 5. Zonas de minería y estado de los sitios (v0.4.0)
+## 5. Zonas de minería, densidad y sitios agotados
 
 - **Zonas:** cada planeta tiene varias zonas (las señales "Planetary Mining Location Signal (N)"). Cuando fijas una zona como destino, el plugin lo apunta y lo **recuerda** aunque quites el destino o reinicies EDMC. Al bajar guarda el punto de la zona, y a cada sitio que mines le asigna su zona. Si falta el número, la hoja usa la zona conocida más cercana (hasta 10 km).
 - **Minerales de la zona:** el juego solo los muestra en pantalla al fijar la zona. Apúntalos a mano en la pestaña **Zonas** de la hoja, columna "Minerales (anotar a mano)", separados por comas. La hoja rellena sola los "Minerales confirmados" con lo que ha minado la flota.
-- **Estado del sitio:** el escáner del Rhino muestra si un sitio está alto, medio, bajo o agotado, pero el juego no lo escribe en el journal. Para compartirlo, pulsa el botón correspondiente en la línea de Skull Mining de la ventana de EDMC **estando en el sitio**. Se asigna al sitio de tu posición, aunque aún no hayas minado ahí.
+- **Densidad y agotado:** el escáner del Rhino muestra la densidad del sitio (alta, media o baja) o si está agotado, pero el juego no lo escribe en el journal. Para compartirlo, pulsa el botón correspondiente (Alto, Medio, Bajo o Agotado) en la línea de Skull Mining de la ventana de EDMC **estando en el sitio**. Se asigna al sitio de tu posición, aunque aún no hayas minado ahí. La densidad es fija; el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera. Si marcas una densidad en un sitio que figuraba como agotado, deja de figurar como agotado (sirve para corregir un error).
 
 ## 6. Avisos en Discord
 
