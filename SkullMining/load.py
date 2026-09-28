@@ -102,14 +102,15 @@ def plugin_app(parent: tk.Frame):
     S.label = tk.Label(frame, text="Iniciando…", anchor=tk.W, justify=tk.LEFT)
     S.label.grid(row=0, column=1, sticky=tk.EW)
     frame.columnconfigure(1, weight=1)
-    # Botones para marcar el sitio donde estás (el juego no escribe la densidad en el journal)
-    row = tk.Frame(frame)
-    row.grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=(2, 0))
-    tk.Label(row, text="Densidad:").pack(side=tk.LEFT)
-    for label, state in (("Alta", "alto"), ("Media", "medio"), ("Baja", "bajo")):
-        tk.Button(row, text=label, padx=4, pady=0, command=lambda st=state: _mark_state(st)).pack(side=tk.LEFT, padx=1)
-    tk.Label(row, text="  ").pack(side=tk.LEFT)
-    tk.Button(row, text="Agotado", padx=4, pady=0, command=lambda: _mark_state("agotado")).pack(side=tk.LEFT, padx=1)
+    # Botones con lo que muestra el escáner del Rhino (el juego no lo escribe en el journal)
+    rows = (("Densidad:", (("Alta", "alto"), ("Media", "medio"), ("Baja", "bajo"))),
+            ("Cantidad:", (("Alta", "cant_alta"), ("Media", "cant_media"), ("Baja", "cant_baja"), ("Agotado", "agotado"))))
+    for i, (title, buttons) in enumerate(rows):
+        row = tk.Frame(frame)
+        row.grid(row=1 + i, column=0, columnspan=2, sticky=tk.W, pady=(2, 0))
+        tk.Label(row, text=title, width=9, anchor=tk.W).pack(side=tk.LEFT)
+        for label, state in buttons:
+            tk.Button(row, text=label, padx=4, pady=0, command=lambda st=state: _mark_state(st)).pack(side=tk.LEFT, padx=1)
     frame.after(2000, _refresh_label, frame)
     return frame
 

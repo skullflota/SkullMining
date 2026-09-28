@@ -16,7 +16,7 @@ from typing import Callable, Dict, List, Optional
 
 import skull_analysis as analysis
 
-PLUGIN_VERSION = "0.5.2"
+PLUGIN_VERSION = "0.5.3"
 
 # Bits de Flags / Flags2 del Status.json
 FLAG_HAS_LATLONG = 1 << 21
@@ -37,7 +37,11 @@ LIVE_SAVE_EVERY_S = 20.0
 # "gigantescas" (un minero cuenta conducir 4 km hasta un hotspot); se asigna siempre la más cercana.
 ZONE_RADIUS_M = 10000.0
 # Estados que el jugador puede marcar a mano para un sitio
-SITE_STATES = ("alto", "medio", "bajo", "agotado")
+# Lo que muestra el escáner del Rhino: "Density" (fija) y "Mineral amount" (lo que queda; baja al minar).
+SITE_STATES = ("alto", "medio", "bajo", "cant_alta", "cant_media", "cant_baja", "agotado")
+STATE_TEXT = {"alto": "Densidad alta", "medio": "Densidad media", "bajo": "Densidad baja",
+              "cant_alta": "Cantidad alta", "cant_media": "Cantidad media", "cant_baja": "Cantidad baja",
+              "agotado": "Agotado"}
 
 # Eventos que ya tratamos explícitamente
 KNOWN_EVENTS = {
@@ -337,6 +341,7 @@ class Tracker:
             return "Para marcar el estado tienes que estar en la superficie"
         lat, lon, body = s["lat"], s["lon"], s.get("body")
         mineral = None
+        session_tonnes = 0
         if self.session and self.session.body == body and self.session.planet_radius:
             counts: Dict[str, int] = {}
             for r in self.session.refined:
@@ -346,16 +351,17 @@ class Tracker:
                     counts[r["type"]] = counts.get(r["type"], 0) + 1
             if counts:
                 mineral = max(counts, key=counts.get)
+                session_tonnes = counts[mineral]
         t = s.get("t") or time.time()
         rec = {"time": iso(t), "cmdr": self.cmdr, "system": self.system.get("name"), "body": body,
                "zone": self.current_zone(), "lat": lat, "lon": lon, "state": state, "type": mineral,
-               "planet_radius_m": s.get("radius")}
+               "planet_radius_m": s.get("radius"),
+               # toneladas de este mineral sacadas aquí en la sesión en curso (aún no enviada a la hoja)
+               "session_tonnes": session_tonnes}
         if self.session:
             self.session.events.append({"t": t, "event": "EstadoSitio", "state": state, "lat": lat, "lon": lon})
         self.emit("state", rec)
-        what = "Agotado enviado" if state == "agotado" else \
-            "Densidad " + {"alto": "alta", "medio": "media", "bajo": "baja"}[state] + " enviada"
-        return what + (f" ({mineral})" if mineral else "")
+        return STATE_TEXT[state] + " enviado" + (f" ({mineral}, {session_tonnes} t hoy)" if mineral else "")
 
     def _drop_live(self) -> None:
         if self.live_path and os.path.exists(self.live_path):

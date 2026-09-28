@@ -238,7 +238,7 @@
   <table aria-label="Sitios">
     <thead>
       <tr>
-        <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Taladros</th><th>Densidad</th>
+        <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Taladros</th><th>Densidad · Cantidad</th>
         <th>Ubicación</th><th>Terreno</th><th>Última visita</th>
       </tr>
     </thead>
@@ -248,7 +248,7 @@
 
   <footer>
     <p><b>Valor por vuelta</b> = máximo de taladros conseguido × toneladas por recogida × precio medio del mineral. Es lo que da recoger todos los taladros del sitio una vez.</p>
-    <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. La <b>densidad</b> (alta, media, baja) es fija: la genera el juego para cada sitio. <b>Agotado</b> va aparte: el desgaste lo comparten todos los jugadores y, por lo que se sabe, un sitio agotado no se regenera. Las dos cosas las marcan los miembros con los botones del plugin (Alto, Medio, Bajo, Agotado).</p>
+    <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. El escáner del Rhino muestra dos cosas: la <b>densidad</b> (D: alta, media, baja), que es fija, y la <b>cantidad</b> de mineral que queda (C: alta, media, baja, agotado), que baja a medida que mina cualquier jugador. Las marcan los miembros con los botones del plugin; junto a la cantidad se guardan las toneladas que llevaba sacadas la flota, para estimar cuánto aguanta cada sitio. Por lo que se sabe, un sitio agotado no se regenera.</p>
     <p>Un <b>sitio</b> es un depósito de un solo mineral (la mancha morada del escáner); puede medir más de 100 m y admitir varios taladros. Los taladros deben estar a <b>47 m</b> como mínimo entre sí. </p>
     <p>Datos enviados por los miembros con el plugin <a href="https://github.com/skullflota/SkullMining">Skull Mining</a> para EDMC.</p>
   </footer>
@@ -307,11 +307,18 @@
     if (s.zone == null || s.zone === "") return '<span class="muted">zona ?</span>';
     return '<span class="zone">Zona ' + esc(s.zone) + (s.bodySites ? " de " + esc(s.bodySites) : "") + "</span>";
   }
+  // Densidad (fija) y cantidad de mineral que queda ("Mineral amount" del escáner)
   function stateBadge(s, withWhen) {
     var out = "";
-    if (s.density) out += '<span class="st st-' + esc(String(s.density).toLowerCase()) + '">' + esc(s.density) + "</span> ";
-    if (s.depleted) out += '<span class="st st-agotado">Agotado</span>' +
-      (withWhen ? '<span class="st-when">' + ago(s.depleted).text + "</span>" : "");
+    if (s.density) out += '<span class="st st-' + esc(String(s.density).toLowerCase()) + '" title="Densidad">D ' + esc(s.density) + "</span> ";
+    if (s.depleted) {
+      out += '<span class="st st-agotado">Agotado</span>' + (withWhen ? '<span class="st-when">' + ago(s.depleted).text + "</span>" : "");
+    } else if (s.amount) {
+      var a = String(s.amount);
+      var tip = "Cantidad de mineral" + (s.amountTonnes ? " (marcada con " + s.amountTonnes + " t sacadas por la flota)" : "");
+      out += '<span class="st st-' + esc(a.toLowerCase()) + '" title="' + esc(tip) + '">C ' + esc(a) + "</span>" +
+        (withWhen ? '<span class="st-when">' + (s.amountTonnes ? esc(s.amountTonnes) + " t · " : "") + ago(s.amountTime).text + "</span>" : "");
+    }
     return out || '<span class="muted">—</span>';
   }
   // Compatibilidad con la hoja antigua (un solo campo "state")
@@ -422,7 +429,7 @@
         '</span></div><span class="value">' + credits(s.value) + "</span></div>" +
         '<div class="loc" style="margin-top:6px"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(shortBody(s)) + " · " + zoneLabel(s) + "</div></div>" +
         '<div class="grid">' +
-        '<div><div class="k">Densidad</div>' + stateBadge(s, true) + "</div>" +
+        '<div><div class="k">Densidad · Cantidad</div>' + stateBadge(s, true) + "</div>" +
         '<div><div class="k">Taladros</div>' + rigsDots(s.rigs) + "</div>" +
         '<div><div class="k">Precio</div>' + credits(s.price) + "/t</div>" +
         '<div><div class="k">Coordenadas</div><span class="coords">' + coords(s) + "</span></div>" +
@@ -452,7 +459,7 @@
       '<span>Taladros</span><span style="text-align:right">Valor/vuelta</span><span>Terreno</span></li>';
     $("top10list").innerHTML = (mobile ? "" : head) + list.map(function (s, i) {
       var where = '<div class="where"><div>' + esc(s.system) + '</div><div class="b">' + esc(shortBody(s)) + " · " + zoneLabel(s) +
-        (s.density ? " · " + stateBadge(s) : "") + "</div></div>";
+        (s.density || s.amount ? " · " + stateBadge(s) : "") + "</div></div>";
       if (mobile) {
         return '<li class="r' + (i + 1) + '"><span class="pos">' + (i + 1) + '</span><span class="m">' + esc(s.mineral) + '</span><span class="p">' +
           credits(s.price) + "/t</span>" + where + '<div class="extra">' + rigsDots(s.rigs) + terrainBadge(s.terrain) +

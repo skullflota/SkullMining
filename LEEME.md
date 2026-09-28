@@ -1,4 +1,4 @@
-# Skull Mining: plugin de EDMC para la flota Skull (v0.5.2)
+# Skull Mining: plugin de EDMC para la flota Skull (v0.5.3)
 
 Registra automáticamente las sesiones de minería en superficie con el Rhino y las envía a una hoja de Google compartida por la flota. De cada sesión calcula:
 
@@ -56,7 +56,7 @@ Pendiente de calibrar con más sesiones: los umbrales de velocidad y sinuosidad 
 
 - **Zonas:** cada planeta tiene varias zonas (las señales "Planetary Mining Location Signal (N)"). Cuando fijas una zona como destino, el plugin lo apunta y lo **recuerda** aunque quites el destino o reinicies EDMC. Al bajar guarda el punto de la zona, y a cada sitio que mines le asigna su zona. Si falta el número, la hoja usa la zona conocida más cercana (hasta 10 km). **Si el plugin no sabe en qué zona estás, la línea de Skull Mining se pone naranja** con el aviso "Zona desconocida": fija la zona como destino (mapa del planeta o panel izquierdo) y el aviso desaparece.
 - **Minerales de la zona:** el juego solo los muestra en pantalla al fijar la zona. Apúntalos a mano en la pestaña **Zonas** de la hoja, columna "Minerales (anotar a mano)", separados por comas. La hoja rellena sola los "Minerales confirmados" con lo que ha minado la flota.
-- **Densidad y agotado:** el escáner del Rhino muestra la densidad del sitio (alta, media o baja) o si está agotado, pero el juego no lo escribe en el journal. Para compartirlo, pulsa el botón correspondiente (Densidad: Alta, Media, Baja, o Agotado) en la línea de Skull Mining de la ventana de EDMC **estando en el sitio**. Se asigna al sitio de tu posición, aunque aún no hayas minado ahí. La densidad es fija; el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera. Si marcas una densidad en un sitio que figuraba como agotado, deja de figurar como agotado (sirve para corregir un error).
+- **Densidad y cantidad:** el escáner del Rhino muestra dos datos que el juego no escribe en el journal: **Density** (fija) y **Mineral amount** (lo que queda; baja a medida que mina cualquier jugador). En la ventana de EDMC hay dos filas de botones: **Densidad** (Alta, Media, Baja) y **Cantidad** (Alta, Media, Baja, Agotado). Púlsalos **estando en el sitio**. Al marcar la cantidad se guardan las toneladas que la flota llevaba sacadas del sitio, para estimar cuánto aguanta. Si marcas una cantidad en un sitio que figuraba como agotado, deja de figurar como agotado.
 
 - **Datos en bruto:** desde la v0.5.0 cada sesión envía también la hora, posición y zona de cada tonelada refinada (pestaña **Recogidas**). Así, si mejoramos los cálculos, se pueden rehacer las sesiones sin volver a minar.
 - **Novedades del juego:** si Frontier añade eventos o campos nuevos de minería al journal (por ejemplo el depósito o su desgaste), el plugin los envía a la pestaña **Eventos** y Discord avisa la primera vez.

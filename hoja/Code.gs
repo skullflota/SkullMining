@@ -15,11 +15,12 @@
 var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 taladros a 103 m en la misma mancha (28-sep)
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '7';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '8';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
 // Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
 // el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
-var STATE_LABELS = { alto: 'Alta', medio: 'Media', bajo: 'Baja', agotado: 'Agotado' };
+var STATE_LABELS = { alto: 'Alta', medio: 'Media', bajo: 'Baja', agotado: 'Agotado',
+                     cant_alta: 'Cantidad alta', cant_media: 'Cantidad media', cant_baja: 'Cantidad baja' };
 var OLD_DENSITY = { 'Alto': 'Alta', 'Medio': 'Media', 'Bajo': 'Baja' };
 
 var HEADERS = {
@@ -28,7 +29,8 @@ var HEADERS = {
              'Valor por vuelta (Cr)', 'Visitas', 'Recogidas', 'Toneladas totales', 'Sitio más cercano (m)',
              'Mismo mineral más cercano (m)', 'Terreno zona', 'Vel. efectiva zona (m/s)', 'Señal zona',
              'Sitios minería en cuerpo', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Última visita', 'Último CMDR',
-             'Zona', 'Densidad', 'Densidad fecha', 'Densidad CMDR', 'Agotado', 'Agotado CMDR'],
+             'Zona', 'Densidad', 'Densidad fecha', 'Densidad CMDR', 'Agotado', 'Agotado CMDR',
+             'Cantidad', 'Cantidad fecha', 'Cantidad CMDR', 'Cantidad t flota'],
   'Visitas': ['SessionID', 'SiteID', 'Fecha', 'CMDR', 'Mineral', 'Taladros', 'Dist. mín entre taladros (m)',
               'Extensión (m)', 'Recogidas', 'Toneladas', 'T/recogida', 'Terreno zona', 'Vel. efectiva zona (m/s)',
               'Zona'],
@@ -54,7 +56,8 @@ var HEADERS = {
   // se rellena a mano: el juego solo muestra esa lista en pantalla al fijar la zona.
   'Zonas': ['Sistema', 'Cuerpo', 'Zona', 'Lat', 'Lon', 'Minerales (anotar a mano)', 'Minerales confirmados',
             'Sitios', 'Mejor valor por vuelta (Cr)', 'Actualizado'],
-  'Estados': ['Fecha', 'CMDR', 'Sistema', 'Cuerpo', 'Zona', 'Lat', 'Lon', 'Mineral', 'Estado', 'SiteID']
+  'Estados': ['Fecha', 'CMDR', 'Sistema', 'Cuerpo', 'Zona', 'Lat', 'Lon', 'Mineral', 'Estado', 'SiteID',
+              'T sesión', 'T flota al marcar']
 };
 
 var PRICE_SEED = [
@@ -206,7 +209,8 @@ var PUBLIC_SITE_FIELDS = {
   'Terreno zona': 'terrain', 'Vel. efectiva zona (m/s)': 'speed', 'Señal zona': 'signal',
   'Sitios minería en cuerpo': 'bodySites', 'Tipo planeta': 'planetClass', 'Gravedad (g)': 'gravity',
   'Temp (K)': 'temp', 'Última visita': 'lastVisit', 'Zona': 'zone', 'Densidad': 'density',
-  'Densidad fecha': 'densityTime', 'Agotado': 'depleted'
+  'Densidad fecha': 'densityTime', 'Agotado': 'depleted', 'Cantidad': 'amount', 'Cantidad fecha': 'amountTime',
+  'Cantidad t flota': 'amountTonnes'
 };
 
 function publicRanking_(callback) {
@@ -473,9 +477,13 @@ function handleState_(d) {
   if (!label) return;
   var esName = esNames_();
   var siteId = findSiteNear_(d.system, d.body, d.type, d.lat, d.lon, d.planet_radius_m);
+  // Toneladas que la flota llevaba sacadas del sitio al marcar: las ya registradas + las de la sesión en curso
+  var sesT = Number(d.session_tonnes) || 0;
+  var prev = 0;
+  if (siteId) { var row = siteRow_(siteId); prev = row ? Number(row['Toneladas totales']) || 0 : 0; }
   sheet_('Estados').appendRow([d.time, d.cmdr, d.system, d.body, nz_(d.zone), d.lat, d.lon,
-                               d.type ? (esName[d.type] || d.type) : '', label, siteId || '']);
-  if (siteId) setSiteState_(siteId, label, d.time, d.cmdr);
+                               d.type ? (esName[d.type] || d.type) : '', label, siteId || '', sesT, prev + sesT]);
+  if (siteId) setSiteState_(siteId, label, d.time, d.cmdr, prev + sesT);
   if (d.zone !== null && d.zone !== undefined) upsertZone_(d.system, d.body, d.zone);
   try { notifyState_(d, label, siteId, esName); } catch (err) { Logger.log('Discord: ' + err); }
 }
@@ -495,16 +503,23 @@ function findSiteNear_(system, body, type, lat, lon, R) {
 
 // Densidad = la última marcada. Agotado = fecha de la última marca de agotado, salvo que
 // después alguien haya marcado una densidad (el sitio seguía activo o fue un error).
-function setSiteState_(siteId, label, when, cmdr) {
+// Densidad: fija, la última marcada. Cantidad ("Mineral amount" del escáner): lo que queda, con las
+// toneladas que llevaba la flota al marcarla. Agotado: fecha; se quita si luego alguien marca una cantidad.
+function setSiteState_(siteId, label, when, cmdr, fleetT) {
   var sh = sheet_('Sitios');
   var H = HEADERS['Sitios'];
   var r = findRow_('Sitios', 1, siteId);
   if (r < 0) return;
+  var t = fleetT === '' || fleetT === undefined || fleetT === null ? '' : fleetT;
   if (label === 'Agotado') {
     sh.getRange(r, H.indexOf('Agotado') + 1, 1, 2).setValues([[when, cmdr || '']]);
+    sh.getRange(r, H.indexOf('Cantidad') + 1, 1, 4).setValues([['Agotada', when, cmdr || '', t]]);
+  } else if (/^Cantidad /.test(label)) {
+    var q = label.replace('Cantidad ', '');
+    sh.getRange(r, H.indexOf('Cantidad') + 1, 1, 4).setValues([[q.charAt(0).toUpperCase() + q.slice(1), when, cmdr || '', t]]);
+    sh.getRange(r, H.indexOf('Agotado') + 1, 1, 2).setValues([['', '']]);
   } else {
     sh.getRange(r, H.indexOf('Densidad') + 1, 1, 3).setValues([[OLD_DENSITY[label] || label, when, cmdr || '']]);
-    sh.getRange(r, H.indexOf('Agotado') + 1, 1, 2).setValues([['', '']]);
   }
 }
 
@@ -514,7 +529,7 @@ function recomputeSiteStates_(siteId) {
     .filter(function (r) { return r[9] && (!siteId || r[9] === siteId); })
     .sort(function (a, b) { return timeOf_(a[0]) - timeOf_(b[0]); });
   var seen = {};
-  v.forEach(function (r) { seen[r[9]] = 1; setSiteState_(r[9], r[8], r[0], r[1]); });
+  v.forEach(function (r) { seen[r[9]] = 1; setSiteState_(r[9], r[8], r[0], r[1], r[11]); });
   return seen;
 }
 
