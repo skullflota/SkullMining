@@ -31,6 +31,12 @@ BURST_GAP_S = 20.0
 STRAGGLER_S = 90.0
 # 12 chunks por plataforma desde 4.4.1.1 (la sesión real dio 11-12 t por recogida)
 MAX_TONNES_PER_COLLECTION = 13
+# Una plataforma da como mucho 12 chunks: una ráfaga más larga son varias plataformas
+# recogidas seguidas (el Rhino llega a la siguiente en pocos segundos).
+MAX_CHUNKS_PER_RIG = 12
+# Si un refinado cae a más de esta distancia del inicio de la ráfaga, es otra plataforma
+# (las plataformas están a 47 m o más; dentro de una recogida el Rhino se mueve < 20 m).
+BURST_SPLIT_M = 30.0
 # Velocidad mínima (m/s) para considerar que el Rhino está en movimiento.
 MOVING_SPEED_MS = 1.0
 
@@ -54,7 +60,7 @@ def _centroid(pts: Sequence[Tuple[float, float]]) -> Tuple[float, float]:
     return lat, math.degrees(math.atan2(y, x))
 
 
-def collections_from_refined(refined: List[dict]) -> List[dict]:
+def collections_from_refined(refined: List[dict], radius_m: float = 0.0) -> List[dict]:
     """Agrupa los refinados en recogidas (pasar el Rhino por una plataforma).
 
     La posición de la recogida es la del primer refinado, que es cuando el Rhino
@@ -63,7 +69,13 @@ def collections_from_refined(refined: List[dict]) -> List[dict]:
     raw: List[dict] = []
     for r in sorted(refined, key=lambda x: x["t"]):
         last = raw[-1] if raw else None
-        if last and r["t"] - last["end"] <= BURST_GAP_S:
+        same = bool(last) and r["t"] - last["end"] <= BURST_GAP_S
+        if same and len(last["items"]) >= MAX_CHUNKS_PER_RIG:
+            same = False
+        if (same and radius_m > 0 and last["lat"] is not None and r.get("lat") is not None
+                and haversine_m(last["lat"], last["lon"], r["lat"], r["lon"], radius_m) > BURST_SPLIT_M):
+            same = False
+        if same:
             last["end"] = r["t"]
             last["items"].append(r)
         else:
@@ -102,7 +114,7 @@ def cluster_rigs(refined: List[dict], radius_m: float, cluster_radius_m: float =
     cercanas con minerales distintos se cuentan por separado.
     """
     clusters: List[dict] = []
-    for col in collections_from_refined(refined):
+    for col in collections_from_refined(refined, radius_m):
         if col["lat"] is None:
             continue
         best, best_d = None, None

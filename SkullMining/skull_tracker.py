@@ -16,7 +16,7 @@ from typing import Callable, Dict, List, Optional
 
 import skull_analysis as analysis
 
-PLUGIN_VERSION = "0.4.0"
+PLUGIN_VERSION = "0.4.1"
 
 # Bits de Flags / Flags2 del Status.json
 FLAG_HAS_LATLONG = 1 << 21
