@@ -358,7 +358,8 @@
   ] };
   function sellBoxHtml(btn, data) {
     var type = btn.dataset.type, mineral = btn.dataset.mineral, system = btn.dataset.system;
-    var html = "<h4>Dónde vender " + esc(mineral) + " cerca de " + esc(system) + "</h4>";
+    var html = "<h4>Dónde vender " + esc(mineral) + " cerca de " + esc(system) +
+      ' · <a href="' + esc(inaraUrl(type, system)) + '" target="_blank" rel="noopener">buscar en Inara ↗</a></h4>';
     var f = state.sales && state.sales[String(type).toLowerCase()];
     if (f && f.best) {
       html += '<div class="fleet">La flota lo ha vendido a <b>' + credits(f.best) + "/t</b> como mejor precio" +
@@ -379,9 +380,22 @@
     });
     return html + "</tbody></table>" + sellFoot(data.demo);
   }
+  // IDs de Inara de cada mineral (inara.cz/elite/commodity/ID). Comprobados a mano el 1-oct-2026:
+  // monazite, thortveitite, iridium, magnesite, tritium, periclasedunite, diamond. El resto, de su lista.
+  var INARA_IDS = { monazite: 10245, alexandrite: 10249, grandidierite: 10248, iridium: 10489, periclasedunite: 10498,
+    thortveitite: 10495, serendibite: 10244, rhodplumsite: 10243, tritium: 10269, helium: 10490, helium3: 10491,
+    deuterium: 10494, water: 139, methanolmonohydratecrystals: 146, platinum: 81, osmium: 72, palladium: 45, gold: 42,
+    silver: 46, samarium: 142, thorium: 109, uranium: 50, diamond: 10500, lowtemperaturediamond: 144, sapphire: 10499,
+    ruby: 10501, jadeite: 168, magnesite: 10502, olivine: 10497, quartzpyroxenite: 10496, bastnasite: 10493,
+    hematite: 10486, titanium: 48, tantalum: 47, uraninite: 60, lithium: 44, copper: 40 };
+  function inaraUrl(type, system) {
+    var id = INARA_IDS[String(type || "").toLowerCase()];
+    if (!id) return "https://inara.cz/elite/commodities/";
+    return "https://inara.cz/elite/commodities/?formbrief=1&pi1=2&pa1%5B%5D=" + id + (system ? "&ps1=" + encodeURIComponent(system) : "");
+  }
   function sellFoot(demo) {
     return '<div class="foot">' + (demo ? "Datos de ejemplo. " : "") + "Fuente: Spansh (mercados enviados por los jugadores a EDDN), hasta 80 años luz, demanda de 50 t o más, sin naves nodriza; primero los precios de los últimos 30 días. " +
-      'Compruébalo también en <a href="https://inara.cz/elite/commodities/" target="_blank" rel="noopener">Inara</a>.</div>';
+      'Compruébalo también en Inara con el enlace de arriba.</div>';
   }
   function toggleSell(btn) {
     var open = btn.getAttribute("aria-expanded") === "true";
