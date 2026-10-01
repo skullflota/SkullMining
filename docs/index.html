@@ -394,10 +394,9 @@
     "También sirven para apuntarlas o pasarlas por Discord.";
   function coordTools(s) {
     if (s.lat == null || s.lon == null) return "";
-    // Formato que entiende el botón "Pegar" de SrvSurvey: separado por un espacio (con ", " falla) y con el
-    // separador decimal de Windows, que suponemos igual al del navegador (coma en español).
-    var dec = (1.5).toLocaleString().indexOf(",") >= 0 ? "," : ".";
-    var fmt = function (v) { return Number(v).toFixed(6).replace(".", dec); };
+    // Formato que entiende el botón "Pegar" de SrvSurvey: "+59.249187 +104.405121" (punto decimal, signo y
+    // separado por un espacio; con ", " falla). Comprobado con Carlos el 1-oct-2026.
+    var fmt = function (v) { v = Number(v); return (v >= 0 ? "+" : "") + v.toFixed(6); };
     var txt = fmt(s.lat) + " " + fmt(s.lon);
     return ' <button class="copy coord" type="button" data-copy="' + esc(txt) + '" data-label="copiar coord." ' +
       'title="Copiar latitud y longitud">copiar coord.</button> <button class="info" type="button" aria-expanded="false" ' +
