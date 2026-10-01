@@ -389,7 +389,8 @@
   }
   // Botón para copiar coordenadas + caja de ayuda (los comandantes no leen las notas de la versión)
   var COORD_HELP = "<b>Copiar coordenadas</b> copia la latitud y la longitud del sitio. Pégalas donde quieras que te guíe hasta él: " +
-    "en <b>SrvSurvey</b> (objetivo en tierra → pegar) tendrás una flecha y la distancia, en la nave y en el Rhino. " +
+    "en <b>SrvSurvey</b>, abre <i>Establecer coordenadas</i> y pulsa el botón <b>Pegar</b> (no pegues en las casillas): " +
+    "rellena latitud y longitud a la vez y, con <i>Establecer objetivo</i>, tendrás una flecha y la distancia, en la nave y en el Rhino. " +
     "También sirven para apuntarlas o pasarlas por Discord.";
   function coordTools(s) {
     if (s.lat == null || s.lon == null) return "";
