@@ -122,6 +122,7 @@
   .st-alta { background: #45d48322; color: var(--good); } .st-media { background: #ffcb4722; color: var(--warn); }
   .st-baja { background: #ff8a1f22; color: var(--accent); } .st-agotado { background: #ff5d5d22; color: var(--bad); }
   tr.depleted td, .card.depleted { opacity: .55; }
+  .left { color: var(--cyan); font-size: 13px; white-space: nowrap; cursor: help; }
   .st-when { display: block; color: var(--muted); font-size: 12px; }
   .zone { color: var(--cyan); font-weight: 600; }
   .zones { margin: 0 0 18px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 10px; }
@@ -225,6 +226,7 @@
     <label>Ordenar por
       <select id="sort">
         <option value="value">Valor/vuelta</option>
+        <option value="left">Valor que queda</option>
         <option value="price">Precio del mineral</option>
         <option value="rigs">Nº de taladros</option>
         <option value="nearest">Sitio más cercano</option>
@@ -248,6 +250,7 @@
 
   <footer>
     <p><b>Valor por vuelta</b> = máximo de taladros conseguido × toneladas por recogida × precio medio del mineral. Es lo que da recoger todos los taladros del sitio una vez.</p>
+    <p><b>Quedan ≈ … t</b> es una estimación de lo que le queda al sitio: taladros × toneladas por taladro según la densidad (alta 125–175 t, media el doble, baja el triple) × la parte que queda según la cantidad marcada (alta 57–100 %, media 27–67 %, baja 0–34 %), menos lo que haya sacado la flota después de marcarla. Sin densidad o cantidad marcadas el rango es mucho más amplio. Son cifras medidas por el autor de <a href="https://github.com/Fumlop/EDRhinoSpotter">RhinoSpotter</a> en seis depósitos; las iremos ajustando con los datos de la flota.</p>
     <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. El escáner del Rhino muestra dos cosas: la <b>densidad</b> (D: alta, media, baja), que es fija, y la <b>cantidad</b> de mineral que queda (C: alta, media, baja, agotado), que baja a medida que mina cualquier jugador. Las marcan los miembros con los botones del plugin; junto a la cantidad se guardan las toneladas que llevaba sacadas la flota, para estimar cuánto aguanta cada sitio. Por lo que se sabe, un sitio agotado no se regenera.</p>
     <p>Un <b>sitio</b> es un depósito de un solo mineral (la mancha morada del escáner); puede medir más de 100 m y admitir varios taladros. Los taladros deben estar a <b>47 m</b> como mínimo entre sí. </p>
     <p>Datos enviados por los miembros con el plugin <a href="https://github.com/skullflota/SkullMining">Skull Mining</a> para EDMC.</p>
@@ -276,6 +279,44 @@
     if (v >= 1e6) return (v / 1e6).toLocaleString("es-ES", { maximumFractionDigits: 2 }) + " M Cr";
     if (v >= 1e3) return Math.round(v / 1e3).toLocaleString("es-ES") + " k Cr";
     return nf.format(v) + " Cr";
+  }
+  // Toneladas que quedan en un sitio. Modelo medido por el autor de RhinoSpotter (29-sep-2026, seis
+  // depósitos minados de High a Depleted): t por posición de taladro según la densidad y fracción que
+  // queda según la cantidad ("Mineral amount"). Se resta lo que la flota ha sacado desde que se marcó.
+  var TONS_PER_RIG = { Alta: [125, 175], Media: [250, 350], Baja: [375, 525] };
+  var TONS_PER_RIG_UNKNOWN = [125, 525];
+  var SHARE_LEFT = { Alta: [0.566, 1], Media: [0.267, 0.665], Baja: [0, 0.342] };
+  function tonsLeft(s) {
+    if (s.depleted) return { lo: 0, hi: 0, depleted: true };
+    var rigs = Math.max(1, Number(s.rigs) || 0);
+    var per = TONS_PER_RIG[s.density] || TONS_PER_RIG_UNKNOWN;
+    var mined = Number(s.tonnes) || 0;
+    var lo, hi, known = !!SHARE_LEFT[s.amount];
+    if (known) {
+      var sh = SHARE_LEFT[s.amount];
+      var since = s.amountTonnes != null && s.amountTonnes !== "" ? Math.max(0, mined - Number(s.amountTonnes)) : 0;
+      lo = rigs * per[0] * sh[0] - since; hi = rigs * per[1] * sh[1] - since;
+    } else {
+      // Sin cantidad marcada: capacidad total menos lo que ha sacado la flota (otros jugadores también minan)
+      lo = rigs * per[0] - mined; hi = rigs * per[1] - mined;
+    }
+    var r10 = function (x) { return Math.max(0, Math.round(x / 10) * 10); };
+    return { lo: r10(lo), hi: r10(hi), known: known, guessDensity: !TONS_PER_RIG[s.density] };
+  }
+  function tonsLeftText(s, withValue) {
+    var t = tonsLeft(s);
+    if (t.depleted) return "agotado";
+    if (!t.hi) return "≈ casi agotado";
+    var txt = "quedan ≈ " + (t.lo ? nf.format(t.lo) + "–" : "hasta ") + nf.format(t.hi) + " t";
+    if (withValue && s.price) txt += " · " + credits((t.lo + t.hi) / 2 * Number(s.price));
+    return txt;
+  }
+  function leftValue(s) { var t = tonsLeft(s); return (t.lo + t.hi) / 2 * (Number(s.price) || 0); }
+  function leftTitle(s) {
+    var t = tonsLeft(s);
+    return "Estimación: " + Math.max(1, Number(s.rigs) || 0) + " taladro(s) × t por taladro según la densidad" +
+      (t.guessDensity ? " (sin marcar: rango amplio)" : " " + s.density) +
+      (t.known ? " × lo que queda según la cantidad " + s.amount : " − lo sacado por la flota (sin cantidad marcada)") + ".";
   }
   function meters(v) {
     if (v == null || v === "") return "—";
@@ -387,6 +428,7 @@
     list.sort(function (a, b) {
       switch (sort) {
         case "price": return num(b.price, -1) - num(a.price, -1);
+        case "left": return leftValue(b) - leftValue(a);
         case "rigs": return num(b.rigs, -1) - num(a.rigs, -1) || num(b.value, -1) - num(a.value, -1);
         case "nearest": return num(a.nearest, Infinity) - num(b.nearest, Infinity);
         case "lastVisit": return new Date(b.lastVisit || 0) - new Date(a.lastVisit || 0);
@@ -415,7 +457,9 @@
         '<tr class="' + cls + '">' +
         '<td class="rank">' + (i + 1) + "</td>" +
         '<td><div class="mineral">' + esc(s.mineral) + '</div><div class="price">' + credits(s.price) + "/t</div></td>" +
-        '<td class="num"><span class="value">' + credits(s.value) + '</span><div class="price">' + (s.tpc ? esc(s.tpc) + " t/recogida" : "") + "</div></td>" +
+        '<td class="num"><span class="value">' + credits(s.value) + '</span><div class="price">' + (s.tpc ? esc(s.tpc) + " t/recogida" : "") + "</div>" +
+          '<div class="left" title="' + esc(leftTitle(s)) + '">' + esc(tonsLeftText(s, false)) + "</div>" +
+          ($("sort").value === "left" && !s.depleted ? '<div class="left">≈ ' + credits(leftValue(s)) + " en total</div>" : "") + "</td>" +
         "<td>" + rigsDots(s.rigs) + (s.rigSpacing ? '<div class="price">a ' + meters(s.rigSpacing) + "</div>" : "") + "</td>" +
         "<td>" + stateBadge(s, true) + "</td>" +
         '<td class="loc"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(shortBody(s)) +
@@ -432,6 +476,7 @@
         '<div><div class="k">Densidad · Cantidad</div>' + stateBadge(s, true) + "</div>" +
         '<div><div class="k">Taladros</div>' + rigsDots(s.rigs) + "</div>" +
         '<div><div class="k">Precio</div>' + credits(s.price) + "/t</div>" +
+        '<div title="' + esc(leftTitle(s)) + '"><div class="k">Queda</div>' + esc(tonsLeftText(s, true).replace("quedan ", "")) + "</div>" +
         '<div><div class="k">Coordenadas</div><span class="coords">' + coords(s) + "</span></div>" +
         '<div><div class="k">Más cercano</div>' + meters(s.nearest) + "</div>" +
         '<div><div class="k">Terreno</div>' + terrainBadge(s.terrain) + "</div>" +
