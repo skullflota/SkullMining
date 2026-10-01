@@ -375,12 +375,12 @@
       html += '<tr><td class="p">' + credits(r.price) + "</td><td>" + st + (r.planetary ? ' <span class="muted">(planeta)</span>' : "") +
         "</td><td>" + esc(r.system) + " " + copyBtn(r.system) + "</td><td>" + (r.ly != null ? nf.format(r.ly) + " al" : "—") +
         '</td><td class="hide-m">' + (r.demand != null ? nf.format(r.demand) + " t" : "—") + '</td><td class="hide-m">' + (r.large ? "L" : "M/S") +
-        '</td><td class="hide-m">' + (r.updated ? ago(r.updated).text : "—") + "</td></tr>";
+        '</td><td class="hide-m">' + (r.updated ? ago(r.updated).text : "—") + (r.stale ? ' <span title="Datos de hace más de 30 días: el precio puede haber cambiado">⚠ viejo</span>' : "") + "</td></tr>";
     });
     return html + "</tbody></table>" + sellFoot(data.demo);
   }
   function sellFoot(demo) {
-    return '<div class="foot">' + (demo ? "Datos de ejemplo. " : "") + "Fuente: Spansh (mercados enviados por los jugadores a EDDN), hasta 80 años luz, sin naves nodriza. " +
+    return '<div class="foot">' + (demo ? "Datos de ejemplo. " : "") + "Fuente: Spansh (mercados enviados por los jugadores a EDDN), hasta 80 años luz, demanda de 50 t o más, sin naves nodriza; primero los precios de los últimos 30 días. " +
       'Compruébalo también en <a href="https://inara.cz/elite/commodities/" target="_blank" rel="noopener">Inara</a>.</div>';
   }
   function toggleSell(btn) {

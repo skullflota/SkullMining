@@ -782,6 +782,8 @@ function ensurePrices_(tonnesByType, names, prices) {
 // mismos que usa Inara; Inara no tiene API de mercados). Se guarda en caché 3 h por mineral y sistema.
 var SELL_MAX_LY = 80;
 var SELL_CACHE_S = 3 * 3600;
+var SELL_MIN_DEMAND = 50;      // menos demanda no compensa el viaje
+var SELL_MAX_AGE_DAYS = 30;    // precios más viejos no son fiables (prueba real 1-oct-2026: había datos de 2024)
 
 function sellPlaces_(mineral, system) {
   mineral = String(mineral || '').trim(); system = String(system || '').trim();
@@ -803,9 +805,9 @@ function sellPlaces_(mineral, system) {
 
 function spanshSellSearch_(mineral, system) {
   var filter = { name: mineral, sell_price: { value: [1, 999999999], comparison: '<=>' },
-                 demand: { value: [1, 999999999], comparison: '<=>' } };
+                 demand: { value: [SELL_MIN_DEMAND, 999999999], comparison: '<=>' } };
   var base = { filters: { market: [filter], distance: { min: 0, max: SELL_MAX_LY } },
-               size: 50, page: 0, reference_system: system };
+               size: 100, page: 0, reference_system: system };
   var withSort = JSON.parse(JSON.stringify(base));
   withSort.sort = [{ market_sell_price: [{ name: mineral, direction: 'desc' }] }];
   var data = spanshPost_('/stations/search', withSort) || spanshPost_('/stations/search', base);
@@ -821,7 +823,11 @@ function spanshSellSearch_(mineral, system) {
                 updated: st.market_updated_at || st.updated_at || '', marketId: st.market_id || null });
   });
   rows.sort(function (a, b) { return b.price - a.price || (a.ly || 0) - (b.ly || 0); });
-  return rows.slice(0, 8);
+  // Primero los datos recientes; si hay pocos, se completan con los viejos (la web los marca)
+  var limit = Date.now() - SELL_MAX_AGE_DAYS * 86400000;
+  rows.forEach(function (r) { r.stale = !r.updated || timeOf_(r.updated) < limit; });
+  var fresh = rows.filter(function (r) { return !r.stale; });
+  return fresh.length >= 3 ? fresh.slice(0, 8) : fresh.concat(rows.filter(function (r) { return r.stale; })).slice(0, 8);
 }
 
 function spanshPost_(path, body) {
