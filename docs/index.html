@@ -394,7 +394,11 @@
     "También sirven para apuntarlas o pasarlas por Discord.";
   function coordTools(s) {
     if (s.lat == null || s.lon == null) return "";
-    var txt = Number(s.lat).toFixed(6) + ", " + Number(s.lon).toFixed(6);
+    // Formato que entiende el botón "Pegar" de SrvSurvey: separado por un espacio (con ", " falla) y con el
+    // separador decimal de Windows, que suponemos igual al del navegador (coma en español).
+    var dec = (1.5).toLocaleString().indexOf(",") >= 0 ? "," : ".";
+    var fmt = function (v) { return Number(v).toFixed(6).replace(".", dec); };
+    var txt = fmt(s.lat) + " " + fmt(s.lon);
     return ' <button class="copy coord" type="button" data-copy="' + esc(txt) + '" data-label="copiar coord." ' +
       'title="Copiar latitud y longitud">copiar coord.</button> <button class="info" type="button" aria-expanded="false" ' +
       'aria-label="¿Para qué sirve copiar coordenadas?" title="¿Para qué sirve?">i</button>';
