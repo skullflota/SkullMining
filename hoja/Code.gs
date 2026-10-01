@@ -190,6 +190,7 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   // Lectura pública para la web del ranking: solo sitios, sin nombres de comandante
   if (p.view === 'ranking') { ensureSchema_(false); return publicRanking_(p.callback); }
+  if (p.view === 'sell') return jsonp_(sellPlaces_(p.mineral, p.system), p.callback);
   var token = PropertiesService.getScriptProperties().getProperty('FLEET_TOKEN');
   if (!e || !e.parameter || e.parameter.token !== token) return json_({ ok: false, error: 'token' });
   var name = e.parameter.sheet || 'Sitios';
@@ -240,7 +241,20 @@ function publicRanking_(callback) {
              minerals: String(r[zc('Minerales (anotar a mano)')] || ''), confirmed: String(r[zc('Minerales confirmados')] || ''),
              sites: Number(r[zc('Sitios')]) || 0, best: best === '' ? null : best };
   });
-  var out = { ok: true, updated: new Date().toISOString(), sites: sites, zones: zones,
+  // Nombre en inglés de cada mineral (para buscar mercados) y mejores ventas reales de la flota
+  var names = {};
+  sheet_('Precios').getDataRange().getValues().slice(1).forEach(function (r) { if (r[0] && r[2]) names[String(r[0]).toLowerCase()] = r[2]; });
+  var sales = {};
+  sheet_('Ventas').getDataRange().getValues().slice(1).forEach(function (r) {
+    var t = String(r[2] || '').toLowerCase(), price = Number(r[5]) || 0;
+    if (!t || !price) return;
+    var when = r[0] instanceof Date ? r[0].toISOString() : String(r[0]);
+    var o = sales[t] || (sales[t] = { best: 0, bestSystem: '', last: 0, lastSystem: '', lastTime: '', tonnes: 0 });
+    o.tonnes += Number(r[4]) || 0;
+    if (price > o.best) { o.best = price; o.bestSystem = r[7] || ''; }
+    if (!o.lastTime || timeOf_(when) >= timeOf_(o.lastTime)) { o.last = price; o.lastSystem = r[7] || ''; o.lastTime = when; }
+  });
+  var out = { ok: true, updated: new Date().toISOString(), sites: sites, zones: zones, names: names, sales: sales,
               stats: { sites: sites.length, sessions: ses.length, commanders: Object.keys(cmdrs).length, tonnes: tonnes } };
   var txt = JSON.stringify(out);
   if (callback && /^[A-Za-z_$][\w$.]{0,60}$/.test(callback)) {
@@ -763,6 +777,68 @@ function ensurePrices_(tonnesByType, names, prices) {
   });
 }
 
+// ------------------------------------------------------------------ dónde vender
+// Mejores estaciones cerca de un sistema que compran un mineral, según Spansh (datos de EDDN, los
+// mismos que usa Inara; Inara no tiene API de mercados). Se guarda en caché 3 h por mineral y sistema.
+var SELL_MAX_LY = 80;
+var SELL_CACHE_S = 3 * 3600;
+
+function sellPlaces_(mineral, system) {
+  mineral = String(mineral || '').trim(); system = String(system || '').trim();
+  if (!mineral || !system || mineral.length > 60 || system.length > 80) return { ok: false, error: 'params' };
+  var key = ('sell|' + mineral + '|' + system).toLowerCase().slice(0, 240);
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var out;
+  try {
+    out = { ok: true, mineral: mineral, system: system, maxLy: SELL_MAX_LY, results: spanshSellSearch_(mineral, system),
+            fetched: new Date().toISOString() };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 200) };
+  }
+  try { cache.put(key, JSON.stringify(out), SELL_CACHE_S); } catch (e) { /* demasiado grande: sin caché */ }
+  return out;
+}
+
+function spanshSellSearch_(mineral, system) {
+  var filter = { name: mineral, sell_price: { value: [1, 999999999], comparison: '<=>' },
+                 demand: { value: [1, 999999999], comparison: '<=>' } };
+  var base = { filters: { market: [filter], distance: { min: 0, max: SELL_MAX_LY } },
+               size: 50, page: 0, reference_system: system };
+  var withSort = JSON.parse(JSON.stringify(base));
+  withSort.sort = [{ market_sell_price: [{ name: mineral, direction: 'desc' }] }];
+  var data = spanshPost_('/stations/search', withSort) || spanshPost_('/stations/search', base);
+  if (!data || !data.results) throw new Error('Spansh no respondió');
+  var rows = [];
+  data.results.forEach(function (st) {
+    if (/carrier/i.test(String(st.type || ''))) return;  // las naves nodriza cambian de sitio y de precio
+    var m = (st.market || []).filter(function (c) { return String(c.commodity || '').toLowerCase() === mineral.toLowerCase(); })[0];
+    if (!m || !m.sell_price) return;
+    rows.push({ station: st.name, system: st.system_name, ly: st.distance != null ? Math.round(st.distance * 10) / 10 : null,
+                ls: st.distance_to_arrival != null ? Math.round(st.distance_to_arrival) : null,
+                price: m.sell_price, demand: m.demand, large: !!st.has_large_pad, planetary: !!st.is_planetary,
+                updated: st.market_updated_at || st.updated_at || '', marketId: st.market_id || null });
+  });
+  rows.sort(function (a, b) { return b.price - a.price || (a.ly || 0) - (b.ly || 0); });
+  return rows.slice(0, 8);
+}
+
+function spanshPost_(path, body) {
+  var res = UrlFetchApp.fetch('https://spansh.co.uk/api' + path, {
+    method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true,
+    headers: { 'User-Agent': 'SkullMining (Google Apps Script; github.com/skullflota/SkullMining)' }
+  });
+  if (res.getResponseCode() !== 200) { Logger.log('Spansh ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 300)); return null; }
+  try { return JSON.parse(res.getContentText()); } catch (e) { return null; }
+}
+
+// Ejecutar a mano desde el editor para comprobar que Spansh responde
+function probarSpansh() {
+  var r = sellPlaces_('Monazite', 'Pegasi Sector JN-S b4-7');
+  Logger.log(JSON.stringify(r, null, 1).slice(0, 3000));
+}
+
 // --------------------------------------------------------------------- utilidades
 function sheet_(name) {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
@@ -786,4 +862,12 @@ function haversine_(lat1, lon1, lat2, lon2, R) {
 function timeOf_(x) { return x instanceof Date ? x.getTime() : (Date.parse(x) || 0); }
 function round_(x, n) { var f = Math.pow(10, n); return Math.round(x * f) / f; }
 function nz_(x) { return x === null || x === undefined ? '' : x; }
+function jsonp_(o, callback) {
+  var txt = JSON.stringify(o);
+  if (callback && /^[A-Za-z_$][\w$.]{0,60}$/.test(callback)) {
+    return ContentService.createTextOutput(callback + '(' + txt + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON);
+}
+
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }

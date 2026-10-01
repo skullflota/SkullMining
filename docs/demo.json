@@ -257,5 +257,19 @@
    "sites": 2,
    "best": 4621600
   }
- ]
+ ],
+ "sales": {
+  "thortveitite": {
+   "best": 168498,
+   "bestSystem": "Sistema de ejemplo",
+   "last": 168498,
+   "lastSystem": "Sistema de ejemplo",
+   "lastTime": "2026-09-27T23:00:00Z",
+   "tonnes": 308
+  }
+ },
+ "names": {
+  "monazite": "Monazite",
+  "thortveitite": "Thortveitite"
+ }
 }

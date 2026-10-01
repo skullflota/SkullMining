@@ -100,6 +100,20 @@
   .infobox { display: block; margin: 6px 0 2px; padding: 8px 10px; background: #4fd1ff14; border: 1px solid #4fd1ff44;
     border-radius: 8px; color: var(--text); font-size: 13px; line-height: 1.4; white-space: normal; max-width: 340px; }
   .infobox b { color: var(--cyan); }
+  button.sell { background: none; border: none; padding: 0; margin-top: 2px; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline dotted; }
+  button.sell:hover { color: #fff; }
+  tr.sellrow td { padding-top: 0; }
+  .sellbox { background: #ff8a1f10; border: 1px solid #ff8a1f44; border-radius: 10px; padding: 10px 12px; margin: 4px 0 6px; font-size: 14px; }
+  .sellbox h4 { margin: 0 0 6px; font-size: 14px; color: #fff; font-weight: 700; }
+  .sellbox .fleet { color: var(--muted); margin-bottom: 6px; }
+  .sellbox .fleet b { color: var(--good); }
+  .sellbox table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sellbox th { text-align: left; color: var(--muted); font-weight: 600; padding: 2px 6px; font-size: 12px; }
+  .sellbox td { padding: 3px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+  .sellbox td.p { color: var(--accent); font-weight: 700; white-space: nowrap; }
+  .sellbox .foot { margin-top: 6px; color: var(--muted); font-size: 12px; }
+  .sellbox a { color: var(--cyan); }
+  @media (max-width: 900px) { .sellbox .hide-m { display: none; } }
 
   /* Tarjetas (móvil) */
   .cards { display: none; }
@@ -157,6 +171,7 @@
     .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .controls label.search { grid-column: 1 / -1; }
     table { display: none; }
+    .sellbox table { display: table; }
     .cards { display: block; }
     .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .top10 li { grid-template-columns: 28px minmax(0, 1fr) auto; row-gap: 2px; }
@@ -325,6 +340,70 @@
       (t.guessDensity ? " (sin marcar: rango amplio)" : " " + s.density) +
       (t.known ? " × lo que queda según la cantidad " + s.amount : " − lo sacado por la flota (sin cantidad marcada)") + ".";
   }
+  // ---------------------------------------------------------------- dónde vender
+  function sellBtn(s) {
+    return '<button class="sell" type="button" data-type="' + esc(s.type || "") + '" data-mineral="' + esc(s.mineral || "") +
+      '" data-system="' + esc(s.system || "") + '" aria-expanded="false">dónde vender ▸</button>';
+  }
+  function enName(type, mineral) {
+    var n = state.names && state.names[String(type || "").toLowerCase()];
+    if (n) return n;
+    var t = String(type || mineral || "");
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+  var SELL_DEMO = { ok: true, demo: true, maxLy: 80, results: [
+    { station: "Puerto de ejemplo", system: "Sistema cercano A", ly: 12.4, ls: 850, price: 241500, demand: 3200, large: true, planetary: false, updated: new Date(Date.now() - 5 * 3600e3).toISOString(), marketId: null },
+    { station: "Base Prueba", system: "Sistema cercano B", ly: 31.9, ls: 120, price: 233900, demand: 870, large: false, planetary: true, updated: new Date(Date.now() - 26 * 3600e3).toISOString(), marketId: null },
+    { station: "Estación Demo", system: "Sistema de ejemplo", ly: 0, ls: 2400, price: 198000, demand: 15000, large: true, planetary: false, updated: new Date(Date.now() - 3 * 86400e3).toISOString(), marketId: null }
+  ] };
+  function sellBoxHtml(btn, data) {
+    var type = btn.dataset.type, mineral = btn.dataset.mineral, system = btn.dataset.system;
+    var html = "<h4>Dónde vender " + esc(mineral) + " cerca de " + esc(system) + "</h4>";
+    var f = state.sales && state.sales[String(type).toLowerCase()];
+    if (f && f.best) {
+      html += '<div class="fleet">La flota lo ha vendido a <b>' + credits(f.best) + "/t</b> como mejor precio" +
+        (f.bestSystem ? " (en " + esc(f.bestSystem) + ")" : "") +
+        (f.last && f.lastTime ? "; la última vez a " + credits(f.last) + "/t, " + ago(f.lastTime).text : "") + ".</div>";
+    }
+    if (!data) return html + '<div class="muted">Buscando mercados…</div>';
+    if (!data.ok) return html + '<div class="muted">No se pudo consultar Spansh ahora mismo. Prueba más tarde o mira en Inara.</div>' + sellFoot();
+    var rows = data.results || [];
+    if (!rows.length) return html + '<div class="muted">Nadie lo compra a menos de ' + (data.maxLy || 80) + " años luz, según Spansh.</div>" + sellFoot();
+    html += '<table><thead><tr><th>Precio</th><th>Estación</th><th>Sistema</th><th>Dist.</th><th class="hide-m">Demanda</th><th class="hide-m">Pista</th><th class="hide-m">Datos</th></tr></thead><tbody>';
+    rows.slice(0, 5).forEach(function (r) {
+      var st = r.marketId ? '<a href="https://spansh.co.uk/station/' + encodeURIComponent(r.marketId) + '" target="_blank" rel="noopener">' + esc(r.station) + "</a>" : esc(r.station);
+      html += '<tr><td class="p">' + credits(r.price) + "</td><td>" + st + (r.planetary ? ' <span class="muted">(planeta)</span>' : "") +
+        "</td><td>" + esc(r.system) + " " + copyBtn(r.system) + "</td><td>" + (r.ly != null ? nf.format(r.ly) + " al" : "—") +
+        '</td><td class="hide-m">' + (r.demand != null ? nf.format(r.demand) + " t" : "—") + '</td><td class="hide-m">' + (r.large ? "L" : "M/S") +
+        '</td><td class="hide-m">' + (r.updated ? ago(r.updated).text : "—") + "</td></tr>";
+    });
+    return html + "</tbody></table>" + sellFoot(data.demo);
+  }
+  function sellFoot(demo) {
+    return '<div class="foot">' + (demo ? "Datos de ejemplo. " : "") + "Fuente: Spansh (mercados enviados por los jugadores a EDDN), hasta 80 años luz, sin naves nodriza. " +
+      'Compruébalo también en <a href="https://inara.cz/elite/commodities/" target="_blank" rel="noopener">Inara</a>.</div>';
+  }
+  function toggleSell(btn) {
+    var open = btn.getAttribute("aria-expanded") === "true";
+    var tr = btn.closest("tr"), card = btn.closest("article");
+    var holder = tr ? (tr.nextElementSibling && tr.nextElementSibling.classList.contains("sellrow") ? tr.nextElementSibling : null)
+                    : card.querySelector(".sellbox");
+    if (open) { if (holder) holder.remove(); btn.setAttribute("aria-expanded", "false"); btn.textContent = "dónde vender ▸"; return; }
+    btn.setAttribute("aria-expanded", "true"); btn.textContent = "dónde vender ▾";
+    var box;
+    if (tr) {
+      tr.insertAdjacentHTML("afterend", '<tr class="sellrow"><td colspan="8"><div class="sellbox"></div></td></tr>');
+      box = tr.nextElementSibling.querySelector(".sellbox");
+    } else {
+      card.insertAdjacentHTML("beforeend", '<div class="sellbox"></div>');
+      box = card.querySelector(".sellbox");
+    }
+    box.innerHTML = sellBoxHtml(btn, null);
+    var done = function (d) { if (box.isConnected) box.innerHTML = sellBoxHtml(btn, d); };
+    if (state.demo || !state.api) { setTimeout(function () { done(SELL_DEMO); }, 300); return; }
+    loadJsonp(state.api, "view=sell&mineral=" + encodeURIComponent(enName(btn.dataset.type, btn.dataset.mineral)) +
+      "&system=" + encodeURIComponent(btn.dataset.system)).then(done, function () { done({ ok: false }); });
+  }
   function meters(v) {
     if (v == null || v === "") return "—";
     v = Number(v);
@@ -478,7 +557,7 @@
       rows.push(
         '<tr class="' + cls + '">' +
         '<td class="rank">' + (i + 1) + "</td>" +
-        '<td><div class="mineral">' + esc(s.mineral) + '</div><div class="price">' + credits(s.price) + "/t</div></td>" +
+        '<td><div class="mineral">' + esc(s.mineral) + '</div><div class="price">' + credits(s.price) + "/t</div>" + sellBtn(s) + "</td>" +
         '<td class="num"><span class="value">' + credits(s.value) + '</span><div class="price">' + (s.tpc ? esc(s.tpc) + " t/recogida" : "") + "</div>" +
           '<div class="left" title="' + esc(leftTitle(s)) + '">' + esc(tonsLeftText(s, false)) + "</div>" +
           ($("sort").value === "left" && !s.depleted ? '<div class="left">≈ ' + credits(leftValue(s)) + " en total</div>" : "") + "</td>" +
@@ -497,7 +576,7 @@
         '<div class="grid">' +
         '<div><div class="k">Densidad · Cantidad</div>' + stateBadge(s, true) + "</div>" +
         '<div><div class="k">Taladros</div>' + rigsDots(s.rigs) + "</div>" +
-        '<div><div class="k">Precio</div>' + credits(s.price) + "/t</div>" +
+        '<div><div class="k">Precio</div>' + credits(s.price) + "/t<br>" + sellBtn(s) + "</div>" +
         '<div title="' + esc(leftTitle(s)) + '"><div class="k">Queda</div>' + esc(tonsLeftText(s, true).replace("quedan ", "")) + "</div>" +
         '<div style="grid-column:1/-1"><div class="k">Coordenadas</div><span class="coords">' + coords(s) + "</span>" + coordTools(s) + "</div>" +
         '<div><div class="k">Más cercano</div>' + meters(s.nearest) + "</div>" +
@@ -584,6 +663,8 @@
   function load(data) {
     state.zones = (data && data.zones) || [];
     state.sites = ((data && data.sites) || []).map(normalize);
+    state.names = (data && data.names) || {};
+    state.sales = (data && data.sales) || {};
     state.stats = data && data.stats;
     renderStats();
     renderTop10();
@@ -595,7 +676,7 @@
     }
   }
 
-  function loadJsonp(url) {
+  function loadJsonp(url, query) {
     return new Promise(function (resolve, reject) {
       var cb = "__skull" + Date.now();
       var s = document.createElement("script");
@@ -603,7 +684,7 @@
       function cleanup() { clearTimeout(timer); delete window[cb]; s.remove(); }
       window[cb] = function (d) { cleanup(); resolve(d); };
       s.onerror = function () { cleanup(); reject(new Error("no se pudo cargar")); };
-      s.src = url + (url.indexOf("?") < 0 ? "?" : "&") + "view=ranking&callback=" + cb;
+      s.src = url + (url.indexOf("?") < 0 ? "?" : "&") + (query || "view=ranking") + "&callback=" + cb;
       document.head.appendChild(s);
     });
   }
@@ -612,6 +693,7 @@
     var params = new URLSearchParams(location.search);
     var api = (window.SKULL_API_URL || "").trim();
     var useDemo = params.has("demo") || !api;
+    state.api = api; state.demo = useDemo;
     ["q", "mineral", "minRigs", "terrain", "densityF", "depletedF", "sort"].forEach(function (id) {
       $(id).addEventListener(id === "q" ? "input" : "change", render);
     });
@@ -626,6 +708,8 @@
         return;
       }
       if (e.target.id === "clearZone") { state.zoneFilter = null; renderZones(); render(); return; }
+      var sb = e.target.closest("button.sell");
+      if (sb) { toggleSell(sb); return; }
       var info = e.target.closest("button.info");
       if (info) {
         var open = info.getAttribute("aria-expanded") === "true";
