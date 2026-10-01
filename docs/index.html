@@ -93,6 +93,13 @@
   .muted { color: var(--muted); }
   button.copy { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; cursor: pointer; padding: 1px 6px; font: inherit; font-size: 12px; }
   button.copy:hover { color: var(--accent); border-color: var(--accent); }
+  button.copy.coord { color: var(--cyan); border-color: #4fd1ff55; }
+  button.info { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 999px; width: 18px; height: 18px;
+    padding: 0; font: inherit; font-size: 12px; line-height: 16px; cursor: pointer; vertical-align: middle; }
+  button.info:hover, button.info[aria-expanded="true"] { color: var(--cyan); border-color: var(--cyan); }
+  .infobox { display: block; margin: 6px 0 2px; padding: 8px 10px; background: #4fd1ff14; border: 1px solid #4fd1ff44;
+    border-radius: 8px; color: var(--text); font-size: 13px; line-height: 1.4; white-space: normal; max-width: 340px; }
+  .infobox b { color: var(--cyan); }
 
   /* Tarjetas (móvil) */
   .cards { display: none; }
@@ -380,6 +387,17 @@
     if (s.lat == null || s.lon == null) return "—";
     return Number(s.lat).toFixed(4) + ", " + Number(s.lon).toFixed(4);
   }
+  // Botón para copiar coordenadas + caja de ayuda (los comandantes no leen las notas de la versión)
+  var COORD_HELP = "<b>Copiar coordenadas</b> copia la latitud y la longitud del sitio. Pégalas donde quieras que te guíe hasta él: " +
+    "en <b>SrvSurvey</b> (objetivo en tierra → pegar) tendrás una flecha y la distancia, en la nave y en el Rhino. " +
+    "También sirven para apuntarlas o pasarlas por Discord.";
+  function coordTools(s) {
+    if (s.lat == null || s.lon == null) return "";
+    var txt = Number(s.lat).toFixed(6) + ", " + Number(s.lon).toFixed(6);
+    return ' <button class="copy coord" type="button" data-copy="' + esc(txt) + '" data-label="copiar coord." ' +
+      'title="Copiar latitud y longitud">copiar coord.</button> <button class="info" type="button" aria-expanded="false" ' +
+      'aria-label="¿Para qué sirve copiar coordenadas?" title="¿Para qué sirve?">i</button>';
+  }
 
   function renderStats() {
     var st = state.stats || { sites: state.sites.length };
@@ -463,7 +481,7 @@
         "<td>" + rigsDots(s.rigs) + (s.rigSpacing ? '<div class="price">a ' + meters(s.rigSpacing) + "</div>" : "") + "</td>" +
         "<td>" + stateBadge(s, true) + "</td>" +
         '<td class="loc"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(shortBody(s)) +
-          " · " + zoneLabel(s) + '</div><span class="coords">' + coords(s) + "</span>" +
+          " · " + zoneLabel(s) + '</div><span class="coords">' + coords(s) + "</span>" + coordTools(s) +
           (s.nearest ? ' <span class="price">· otro sitio a ' + meters(s.nearest) + "</span>" : "") + "</td>" +
         "<td>" + terrainBadge(s.terrain) + "</td>" +
         "<td>" + visit + "</td></tr>"
@@ -477,7 +495,7 @@
         '<div><div class="k">Taladros</div>' + rigsDots(s.rigs) + "</div>" +
         '<div><div class="k">Precio</div>' + credits(s.price) + "/t</div>" +
         '<div title="' + esc(leftTitle(s)) + '"><div class="k">Queda</div>' + esc(tonsLeftText(s, true).replace("quedan ", "")) + "</div>" +
-        '<div><div class="k">Coordenadas</div><span class="coords">' + coords(s) + "</span></div>" +
+        '<div style="grid-column:1/-1"><div class="k">Coordenadas</div><span class="coords">' + coords(s) + "</span>" + coordTools(s) + "</div>" +
         '<div><div class="k">Más cercano</div>' + meters(s.nearest) + "</div>" +
         '<div><div class="k">Terreno</div>' + terrainBadge(s.terrain) + "</div>" +
         '<div><div class="k">Última visita</div>' + visit + "</div>" +
@@ -604,10 +622,20 @@
         return;
       }
       if (e.target.id === "clearZone") { state.zoneFilter = null; renderZones(); render(); return; }
+      var info = e.target.closest("button.info");
+      if (info) {
+        var open = info.getAttribute("aria-expanded") === "true";
+        var next = info.nextElementSibling;
+        if (open && next && next.classList.contains("infobox")) next.remove();
+        else info.insertAdjacentHTML("afterend", '<span class="infobox">' + COORD_HELP + "</span>");
+        info.setAttribute("aria-expanded", open ? "false" : "true");
+        return;
+      }
       var b = e.target.closest("button.copy");
       if (!b) return;
+      var label = b.dataset.label || "copiar";
       navigator.clipboard && navigator.clipboard.writeText(b.dataset.copy).then(function () {
-        b.textContent = "copiado"; setTimeout(function () { b.textContent = "copiar"; }, 1200);
+        b.textContent = "copiado ✓"; setTimeout(function () { b.textContent = label; }, 1400);
       });
     });
     renderStats();
