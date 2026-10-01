@@ -788,7 +788,7 @@ var SELL_MAX_AGE_DAYS = 30;    // precios más viejos no son fiables (prueba rea
 function sellPlaces_(mineral, system) {
   mineral = String(mineral || '').trim(); system = String(system || '').trim();
   if (!mineral || !system || mineral.length > 60 || system.length > 80) return { ok: false, error: 'params' };
-  var key = ('sell|' + mineral + '|' + system).toLowerCase().slice(0, 240);
+  var key = ('sell2|' + mineral + '|' + system).toLowerCase().slice(0, 240);
   var cache = CacheService.getScriptCache();
   var hit = cache.get(key);
   if (hit) return JSON.parse(hit);
