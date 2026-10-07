@@ -44,6 +44,25 @@
   .brand h1 span { color: var(--accent); }
   .brand p { margin: 2px 0 0; color: var(--muted); font-size: 15px; }
   .updated { color: var(--muted); font-size: 14px; text-align: right; }
+  .hdr-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .pricesbtn { background: var(--panel); border: 1px solid var(--accent); color: var(--accent); border-radius: 8px; padding: 6px 12px;
+    font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .pricesbtn:hover, .pricesbtn[aria-expanded="true"] { background: var(--accent); color: #111; }
+  .prices { margin: 0 0 18px; background: var(--panel); border: 1px solid var(--accent); border-radius: var(--radius); padding: 14px 16px 10px; }
+  .prices h2 { font-family: "Orbitron", sans-serif; font-size: 15px; letter-spacing: .1em; color: #fff; margin: 0 0 6px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
+  .prices h2 span { color: var(--muted); font-family: "Rajdhani", sans-serif; letter-spacing: 0; font-size: 14px; font-weight: 500; }
+  .prices h2 .close { margin-left: auto; background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+  .prices p { margin: 0 0 8px; font-size: 14px; }
+  .ptable { width: 100%; border-collapse: collapse; font-size: 15px; display: table; }
+  .ptable th { text-align: left; color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 4px 8px; }
+  .ptable td { padding: 4px 8px; border-top: 1px solid var(--line); }
+  .ptable .num { text-align: right; white-space: nowrap; }
+  .ptable td.p { color: var(--accent); font-weight: 700; }
+  .ptable button.pm { background: none; border: none; padding: 0; color: var(--text); font: inherit; font-weight: 700; cursor: pointer; text-align: left; }
+  .ptable button.pm:hover { color: var(--accent); }
+  .ptable a { color: var(--cyan); white-space: nowrap; }
+  @media (max-width: 900px) { .ptable .hide-m { display: none; } .hdr-right { align-items: flex-start; }
+    .ptable { font-size: 14px; } .ptable th, .ptable td { padding: 4px 4px; } .ptable th { letter-spacing: 0; font-size: 11px; } }
   .updated b { color: var(--text); font-weight: 600; }
 
   .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 22px 0 18px; }
@@ -173,6 +192,7 @@
     .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .controls label.search { grid-column: 1 / -1; }
     table { display: none; }
+    .ptable { display: table; }
     .sellbox table { display: table; }
     .cards { display: block; }
     .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -199,8 +219,19 @@
         <p>Ranking de sitios de minería en superficie · flota Skull</p>
       </div>
     </a>
-    <div class="updated" id="updated"></div>
+    <div class="hdr-right">
+      <button type="button" class="pricesbtn" id="pricesBtn" aria-expanded="false" aria-controls="prices">💰 Precios de minerales</button>
+      <div class="updated" id="updated"></div>
+    </div>
   </header>
+
+  <section class="prices" id="prices" aria-label="Precios medios de los minerales" hidden>
+    <h2>PRECIOS MEDIOS DE LOS MINERALES<span>de mayor a menor · orientativos</span>
+      <button type="button" class="close" id="pricesClose" aria-label="Cerrar">✕</button></h2>
+    <p class="muted">Precio medio de venta de nuestra tabla, el que usa la web para calcular el valor por vuelta. El precio real depende de dónde vendáis: mirad "dónde vender" en cada sitio o el enlace a Inara. Pulsa un mineral para ver sus sitios.</p>
+    <table class="ptable"><thead><tr><th>#</th><th>Mineral</th><th class="num">Precio</th><th class="num hide-m">Mejor venta flota</th><th class="num">Sitios</th><th>Inara</th></tr></thead>
+      <tbody id="pricesBody"></tbody></table>
+  </section>
 
   <section class="stats" id="stats" aria-label="Resumen"></section>
 
@@ -394,6 +425,44 @@
     var id = INARA_IDS[String(type || "").toLowerCase()];
     if (!id) return "https://inara.cz/elite/commodities/";
     return "https://inara.cz/elite/commodities/?formbrief=1&pi1=2&pa1%5B%5D=" + id + (system ? "&ps1=" + encodeURIComponent(system) : "");
+  }
+  // Tabla de precios medios (misma que la pestaña Precios de la hoja)
+  var PRICE_TABLE = [
+    ["monazite", "Monacita", 270000], ["alexandrite", "Alejandrita", 229000], ["grandidierite", "Grandidierita", 213000],
+    ["iridium", "Iridio", 212000], ["periclasedunite", "Dunita de periclasa", 206000], ["thortveitite", "Thortveitita", 206000],
+    ["serendibite", "Serendibita", 188000], ["rhodplumsite", "Rhodplumsita", 187000], ["diamond", "Diamante", 136000],
+    ["lowtemperaturediamond", "Diamantes de baja temp.", 130000], ["sapphire", "Zafiro", 129000], ["ruby", "Rubí", 111000],
+    ["helium", "Helio", 104000], ["helium3", "Helio-3", 97000], ["bastnasite", "Bastnasita", 80000], ["platinum", "Platino", 71000],
+    ["osmium", "Osmio", 56000], ["tritium", "Tritio", 53000], ["palladium", "Paladio", 52000], ["gold", "Oro", 47000],
+    ["quartzpyroxenite", "Piroxenita de cuarzo", 47000], ["jadeite", "Jadeíta", 42000], ["deuterium", "Deuterio", 41000],
+    ["magnesite", "Magnesita", 38000], ["silver", "Plata", 37000], ["olivine", "Olivino", 32000], ["samarium", "Samario", 28000],
+    ["tantalum", "Tantalio", 14000], ["thorium", "Torio", 12000], ["uranium", "Uranio", 7000], ["titanium", "Titanio", 4000],
+    ["uraninite", "Uraninita", 3000], ["methanolmonohydratecrystals", "Cristales de metanol", 2000], ["hematite", "Hematita", 2000],
+    ["lithium", "Litio", 2000], ["copper", "Cobre", 700], ["water", "Agua", 496]
+  ];
+  function renderPrices() {
+    var count = {}, names = {};
+    state.sites.forEach(function (s) {
+      var t = String(s.type || "").toLowerCase();
+      if (!s.depleted) count[t] = (count[t] || 0) + 1;
+      if (s.mineral) names[t] = s.mineral;
+    });
+    $("pricesBody").innerHTML = PRICE_TABLE.slice().sort(function (a, b) { return b[2] - a[2]; }).map(function (r, i) {
+      var t = r[0], n = count[t] || 0, f = state.sales && state.sales[t];
+      var label = names[t] || r[1];
+      return "<tr><td class=\"muted\">" + (i + 1) + "</td><td>" +
+        (n ? '<button type="button" class="pm" data-mineral="' + esc(label) + '">' + esc(r[1]) + "</button>" : esc(r[1])) +
+        '</td><td class="num p">' + credits(r[2]) + "/t</td>" +
+        '<td class="num hide-m">' + (f && f.best ? credits(f.best) + "/t" : '<span class="muted">—</span>') + "</td>" +
+        '<td class="num">' + (n || '<span class="muted">0</span>') + "</td>" +
+        "<td>" + (INARA_IDS[t] ? '<a href="' + esc(inaraUrl(t, "")) + '" target="_blank" rel="noopener">vender ↗</a>' : "") + "</td></tr>";
+    }).join("");
+  }
+  function togglePrices(force) {
+    var sec = $("prices"), open = force !== undefined ? force : sec.hidden;
+    sec.hidden = !open;
+    $("pricesBtn").setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) { renderPrices(); sec.scrollIntoView({ behavior: "smooth", block: "start" }); }
   }
   function sellFoot(demo) {
     return '<div class="foot">' + (demo ? "Datos de ejemplo. " : "") + "Fuente: Spansh (mercados enviados por los jugadores a EDDN), hasta 80 años luz, demanda de 50 t o más, sin naves nodriza; primero los precios de los últimos 30 días. " +
@@ -721,7 +790,17 @@
       q.set("r", Date.now().toString(36));
       location.replace(location.pathname + "?" + q.toString() + location.hash);
     });
+    $("pricesBtn").addEventListener("click", function () { togglePrices(); });
+    $("pricesClose").addEventListener("click", function () { togglePrices(false); });
     document.addEventListener("click", function (e) {
+      var pm = e.target.closest("button.pm");
+      if (pm) {
+        var sel = $("mineral"), val = pm.dataset.mineral;
+        for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === val) { sel.value = val; break; }
+        if ($("depletedF").value === "only") $("depletedF").value = "hide";
+        render(); $("count").scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
       var z = e.target.closest("button.zcard");
       if (z) {
         var same = state.zoneFilter && state.zoneFilter.body === z.dataset.body && String(state.zoneFilter.zone) === z.dataset.zone;
