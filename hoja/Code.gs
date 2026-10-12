@@ -338,7 +338,7 @@ function handleSession_(d) {
   ids.forEach(function (id) { recomputeSite_(id, prices); });
   recomputeNearest_(d.system, d.body, d.planet_radius_m);
   recomputeZones_(d.system, d.body);
-  try { notifySession_(d, news, esName, prices); } catch (err) { Logger.log('Discord: ' + err); }
+  try { notifySession_(d, news, esName, prices); } catch (err) { Logger.log('Discord: ' + err); logDiscord_('ERROR', d.system + ' · ' + d.body, String(err)); }
 }
 
 // Estado del sitio antes de procesar la sesión (para saber si es nuevo o un récord)
@@ -600,7 +600,32 @@ function sendDiscord_(payload) {
   payload.username = payload.username || 'Skull Mining';
   var res = UrlFetchApp.fetch(cfg.url, { method: 'post', contentType: 'application/json',
                                          payload: JSON.stringify(payload), muteHttpExceptions: true });
-  return res.getResponseCode() < 300;
+  var code = res.getResponseCode();
+  var title = ((payload.embeds || [])[0] || {}).title || payload.content || '';
+  logDiscord_(code < 300 ? 'enviado' : 'RECHAZADO ' + code, title, code < 300 ? '' : res.getContentText().slice(0, 400));
+  return code < 300;
+}
+
+// Registro de avisos a Discord en la pestaña "Registro Discord" (las 200 últimas líneas)
+function logDiscord_(result, title, detail) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName('Registro Discord');
+    if (!sh) { sh = ss.insertSheet('Registro Discord'); sh.appendRow(['Fecha', 'Resultado', 'Aviso', 'Detalle']); sh.setFrozenRows(1); }
+    sh.appendRow([new Date(), result, String(title).slice(0, 200), String(detail || '').slice(0, 400)]);
+    if (sh.getLastRow() > 220) sh.deleteRows(2, sh.getLastRow() - 201);
+  } catch (e) { Logger.log('Registro Discord: ' + e); }
+}
+
+// Ejecutar a mano: manda a Discord el aviso del sitio visitado más recientemente (prueba con datos reales)
+function probarAvisoSitio() {
+  var v = sheet_('Sitios').getDataRange().getValues();
+  var H = v[0], c = H.indexOf('Última visita'), best = null;
+  for (var i = 1; i < v.length; i++) if (v[i][0] && (!best || timeOf_(v[i][c]) > timeOf_(best[c]))) best = v[i];
+  if (!best) { Logger.log('No hay sitios'); return; }
+  var row = siteRow_(best[0]);
+  var ok = sendDiscord_({ embeds: [siteEmbed_('🧪 Prueba: ' + row['Mineral'] + ' (' + credits_(row['Precio (Cr)']) + '/t)', 0x4fd1ff, row, row['Último CMDR'])] });
+  Logger.log((ok ? 'Enviado: ' : 'RECHAZADO: ') + row['Mineral'] + ' en ' + row['Cuerpo'] + ' — mira la pestaña Registro Discord');
 }
 
 function credits_(v) {
@@ -649,6 +674,8 @@ function notifySession_(d, news, esName, prices) {
     else if (Number(row['Máx taladros']) > n.prevRigs) embeds.push(siteEmbed_('🏆 Récord: ' + row['Máx taladros'] + ' taladros en ' + name, 0xffd166, row, d.cmdr));
     else if (cfg.mode === 'sesiones') embeds.push(siteEmbed_('🔁 Sesión en ' + name, 0x4fd1ff, row, d.cmdr));
   });
+  if (!embeds.length) logDiscord_('sin aviso', d.system + ' · ' + d.body, news.length + ' sitio(s), ninguno nuevo ni récord' +
+    (news.length ? '' : ' (la sesión no trae sitios)'));
   for (var i = 0; i < embeds.length; i += 10) sendDiscord_({ embeds: embeds.slice(i, i + 10) });
 }
 
