@@ -425,7 +425,7 @@ function assignSite_(d, st, esName, prices) {
 }
 
 function recomputeSite_(siteId, prices) {
-  var vis = sheet_('Visitas').getDataRange().getValues();
+  var vis = tabValues_('Visitas');
   var VH = vis[0];
   var vc = function (n) { return VH.indexOf(n); };
   var rows = vis.slice(1).filter(function (r) { return r[1] === siteId; });
@@ -461,7 +461,7 @@ function recomputeSite_(siteId, prices) {
   set('Valor por vuelta (Cr)', maxRigs ? Math.round(maxRigs * (tpc !== '' ? tpc : MARK_TPC) * price) : '');
   set('Visitas', rows.length);
   // Cr/h del sitio: mediana del Cr/h de las sesiones que lo visitaron (mejor las que solo minaron ese sitio)
-  var ses = sheet_('Sesiones').getDataRange().getValues();
+  var ses = tabValues_('Sesiones').slice();
   var SH = ses.shift();
   var ciS = SH.indexOf('Sitios'), ciC = SH.indexOf('Cr/h');
   var mine = ses.filter(function (x) {
@@ -692,13 +692,30 @@ function recomputeSiteStates_(siteId) {
   return seen;
 }
 
-// Ejecutar a mano tras actualizar el script: rellena Cr/h y Creado de todos los sitios ya existentes
+// Lectura de una pestaña entera; durante recalcularSitios se lee una sola vez y se reutiliza (Google corta si se lee cientos de veces)
+var TAB_CACHE_ = null;
+function tabValues_(name) {
+  if (TAB_CACHE_ && TAB_CACHE_[name]) return TAB_CACHE_[name];
+  return sheet_(name).getDataRange().getValues();
+}
+
+// Ejecutar a mano tras actualizar el script: rellena Cr/h y Creado de todos los sitios ya existentes.
+// Se puede ejecutar más de una vez sin problema: reintenta cada sitio y avisa de los que no pudo.
 function recalcularSitios() {
   ensureSchema_(true);
   var prices = priceMap_();
   var ids = sheet_('Sitios').getDataRange().getValues().slice(1).map(function (r) { return r[0]; }).filter(String);
-  ids.forEach(function (id) { recomputeSite_(id, prices); });
-  Logger.log('Sitios recalculados: ' + ids.length);
+  TAB_CACHE_ = { Visitas: sheet_('Visitas').getDataRange().getValues(), Sesiones: sheet_('Sesiones').getDataRange().getValues() };
+  var ok = 0, failed = [];
+  try {
+    ids.forEach(function (id) {
+      for (var t = 1; t <= 3; t++) {
+        try { recomputeSite_(id, prices); ok++; return; }
+        catch (err) { if (t === 3) failed.push(id + ' (' + String(err).slice(0, 80) + ')'); else Utilities.sleep(1500 * t); }
+      }
+    });
+  } finally { TAB_CACHE_ = null; }
+  Logger.log('Sitios recalculados: ' + ok + ' de ' + ids.length + (failed.length ? '. Fallaron: ' + failed.join('; ') + ' — vuelve a ejecutar la función.' : ''));
 }
 
 function recomputeAllStates_() {
