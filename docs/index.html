@@ -48,6 +48,32 @@
   .pricesbtn { background: var(--panel); border: 1px solid var(--accent); color: var(--accent); border-radius: 8px; padding: 6px 12px;
     font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
   .pricesbtn:hover, .pricesbtn[aria-expanded="true"] { background: var(--accent); color: #111; }
+  a.pricesbtn { text-decoration: none; display: inline-block; }
+  nav.links { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  nav.links .pricesbtn { border-color: var(--line); color: var(--text); }
+  nav.links #pricesBtn { border-color: var(--accent); color: var(--accent); }
+  nav.links .pricesbtn:hover { background: var(--accent); color: #111; border-color: var(--accent); }
+  .regenbox { margin: 14px 0 0; border: 1px solid #45d48366; background: #45d48310; border-radius: var(--radius); padding: 10px 14px; font-size: 15px; }
+  .regenbox b { color: var(--good); }
+  .regenbox ul { list-style: none; margin: 4px 0 0; padding: 0; }
+  .regenbox li { padding: 2px 0; }
+  .regenbox button { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--text); cursor: pointer; text-decoration: underline dotted; }
+  .regenbox button:hover { color: var(--good); }
+  .st-regen { background: #45d48322; color: var(--good); }
+  .regenhint { color: var(--muted); font-size: 12px; margin-top: 3px; line-height: 1.25; white-space: normal; max-width: 230px; }
+  .nodata { background: var(--panel); border: 1px solid var(--warn); color: var(--text); border-radius: var(--radius); padding: 14px 16px; margin: 14px 0; }
+  .nodata b { color: var(--warn); }
+  .nodata .sugg { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .nodata .sugg button, button.showall, button.clearall { background: var(--panel-2); border: 1px solid var(--line); color: var(--text); border-radius: 8px;
+    padding: 5px 10px; font: inherit; font-size: 14px; cursor: pointer; }
+  .nodata .sugg button:hover, button.showall:hover, button.clearall:hover { border-color: var(--accent); color: var(--accent); }
+  .home .top10 { margin-top: 18px; }
+  .top10.latest li { grid-template-columns: 90px minmax(120px, 1fr) minmax(0, 2fr) minmax(150px, 1.2fr); }
+  .latest .ev { color: var(--text); font-size: 14px; }
+  .latest .when { color: var(--muted); font-size: 14px; }
+  .topnote { color: var(--muted); font-size: 14px; margin: 0 0 8px; }
+  .homefoot { text-align: center; margin: 4px 0 18px; }
+  .stats { margin-top: 26px; }
   .prices { margin: 0 0 18px; background: var(--panel); border: 1px solid var(--accent); border-radius: var(--radius); padding: 14px 16px 10px; }
   .prices h2 { font-family: "Orbitron", sans-serif; font-size: 15px; letter-spacing: .1em; color: #fff; margin: 0 0 6px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
   .prices h2 span { color: var(--muted); font-family: "Rajdhani", sans-serif; letter-spacing: 0; font-size: 14px; font-weight: 500; }
@@ -197,6 +223,8 @@
     .sellbox table { display: table; }
     .cards { display: block; }
     .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .top10.latest li { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+    .top10.latest li .where, .top10.latest li .ev { grid-column: 1 / -1; }
     .top10 li { grid-template-columns: 28px minmax(0, 1fr) auto; row-gap: 2px; }
     .top10 li.head { display: none; }
     .top10 li .where { grid-column: 2 / -1; }
@@ -221,10 +249,17 @@
       </div>
     </a>
     <div class="hdr-right">
-      <button type="button" class="pricesbtn" id="pricesBtn" aria-expanded="false" aria-controls="prices">💰 Precios de minerales</button>
       <div class="updated" id="updated"></div>
     </div>
   </header>
+
+  <nav class="links" aria-label="Enlaces útiles">
+    <button type="button" class="pricesbtn" id="pricesBtn" aria-expanded="false" aria-controls="prices">💰 Precios de minerales</button>
+    <a class="pricesbtn" href="https://inara.cz/elite/commodities/" target="_blank" rel="noopener" title="Precios de venta y compra de cada mercancía">Inara · mercado ↗</a>
+    <a class="pricesbtn" href="https://spansh.co.uk/" target="_blank" rel="noopener" title="Buscador de estaciones, sistemas y mercados">Spansh ↗</a>
+    <a class="pricesbtn" href="https://github.com/njthomson/SrvSurvey" target="_blank" rel="noopener" title="Guía hasta las coordenadas de un sitio en la nave y en el Rhino">SrvSurvey ↗</a>
+    <a class="pricesbtn" href="https://github.com/skullflota/SkullMining/releases" target="_blank" rel="noopener" title="Descargar el plugin de EDMC">Plugin Skull Mining ↗</a>
+  </nav>
 
   <section class="prices" id="prices" aria-label="Precios medios de los minerales" hidden>
     <h2>PRECIOS MEDIOS DE LOS MINERALES<span>de mayor a menor · orientativos</span>
@@ -234,21 +269,10 @@
       <tbody id="pricesBody"></tbody></table>
   </section>
 
-  <section class="stats" id="stats" aria-label="Resumen"></section>
-
   <div id="notice"></div>
+  <div id="regenNotice"></div>
 
-  <section class="top10" id="top10" aria-label="Top 10 por precio del mineral" hidden>
-    <h2>TOP 10 · MINERALES MEJOR PAGADOS<span>por precio medio de venta</span></h2>
-    <ol id="top10list"></ol>
-  </section>
-
-  <section class="zones" id="zones" aria-label="Zonas de minería" hidden>
-    <h2>ZONAS DE MINERÍA<span>minerales de cada zona · en <b style="color:#fff">blanco</b> los confirmados por la flota · pulsa una zona para ver sus sitios</span></h2>
-    <div id="zonelist"></div>
-  </section>
-
-  <section class="controls" aria-label="Filtros">
+  <section class="controls" aria-label="Buscar sitios" style="margin-top:18px">
     <label class="search">Buscar sistema o cuerpo
       <input id="q" type="search" placeholder="Ej.: Pegasi Sector" autocomplete="off">
     </label>
@@ -285,6 +309,7 @@
     <label>Ordenar por
       <select id="sort">
         <option value="value">Valor/vuelta</option>
+        <option value="crh">Cr/hora</option>
         <option value="left">Valor que queda</option>
         <option value="price">Precio del mineral</option>
         <option value="rigs">Nº de taladros</option>
@@ -295,22 +320,52 @@
   </section>
 
   <div class="count" id="count"></div>
+  <div id="nodata"></div>
 
-  <table aria-label="Sitios">
-    <thead>
-      <tr>
-        <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Taladros</th><th>Densidad · Cantidad</th>
-        <th>Ubicación</th><th>Terreno</th><th>Última visita</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
-  <div class="cards" id="cards"></div>
+  <section class="zones" id="zones" aria-label="Zonas de minería" hidden>
+    <h2>ZONAS DE MINERÍA<span>minerales de cada zona · en <b style="color:#fff">blanco</b> los confirmados por la flota · pulsa una zona para ver sus sitios</span></h2>
+    <div id="zonelist"></div>
+  </section>
+
+  <div id="results">
+    <table aria-label="Sitios">
+      <thead>
+        <tr>
+          <th>#</th><th>Mineral</th><th class="num">Valor por vuelta</th><th>Taladros</th><th>Densidad · Cantidad</th>
+          <th>Ubicación</th><th>Terreno</th><th>Última visita</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="cards" id="cards"></div>
+  </div>
+
+  <div class="home" id="home">
+    <section class="top10" id="top10" aria-label="Top 10 por Cr/hora" hidden>
+      <h2>TOP 10 · MEJORES SITIOS POR HORA<span>Cr por hora medidos en sesiones reales de la flota</span></h2>
+      <ol id="top10list"></ol>
+    </section>
+
+    <section class="top10" id="marked" aria-label="Sitios marcados sin minar" hidden>
+      <h2>SITIOS MARCADOS · AÚN SIN MINAR<span>los han apuntado con el formulario del plugin; valor estimado con los taladros llenos</span></h2>
+      <ol id="markedlist"></ol>
+    </section>
+
+    <section class="top10 latest" id="latest" aria-label="Últimos sitios" hidden>
+      <h2>ÚLTIMOS SITIOS AÑADIDOS O ACTUALIZADOS</h2>
+      <ol id="latestlist"></ol>
+    </section>
+
+    <div class="homefoot"><button type="button" class="showall" id="showAll">Ver todos los sitios</button></div>
+  </div>
+
+  <section class="stats" id="stats" aria-label="Resumen"></section>
 
   <footer>
+    <p><b>Cr/hora</b> = lo que ganó la flota por hora de sesión en ese sitio (mediana de sus sesiones, con el tiempo de ir y volver incluido). Por eso el Top 10 solo lleva sitios minados de verdad; los que alguien ha apuntado pero nadie ha minado aún salen en su propia sección, con un valor estimado.</p>
     <p><b>Valor por vuelta</b> = máximo de taladros conseguido × toneladas por recogida × precio medio del mineral. Es lo que da recoger todos los taladros del sitio una vez.</p>
     <p><b>Quedan ≈ … t</b> es una estimación de lo que le queda al sitio: taladros × toneladas por taladro según la densidad (alta 125–175 t, media el doble, baja el triple) × la parte que queda según la cantidad marcada (alta 57–100 %, media 27–67 %, baja 0–34 %), menos lo que haya sacado la flota después de marcarla. Sin densidad o cantidad marcadas el rango es mucho más amplio. Son cifras medidas por el autor de <a href="https://github.com/Fumlop/EDRhinoSpotter">RhinoSpotter</a> en seis depósitos; las iremos ajustando con los datos de la flota.</p>
-    <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. El escáner del Rhino muestra dos cosas: la <b>densidad</b> (D: alta, media, baja), que es fija, y la <b>cantidad</b> de mineral que queda (C: alta, media, baja, agotado), que baja a medida que mina cualquier jugador. Las marcan los miembros con los botones del plugin; junto a la cantidad se guardan las toneladas que llevaba sacadas la flota, para estimar cuánto aguanta cada sitio. Por lo que se sabe, un sitio agotado no se regenera.</p>
+    <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. El escáner del Rhino muestra dos cosas: la <b>densidad</b> (D: alta, media, baja), que es fija, y la <b>cantidad</b> de mineral que queda (C: alta, media, baja, agotado), que baja a medida que mina cualquier jugador. Las marcan los miembros con los botones del plugin; junto a la cantidad se guardan las toneladas que llevaba sacadas la flota, para estimar cuánto aguanta cada sitio. Si un sitio estaba agotado y alguien lo marca después con una cantidad (alta, media o baja), la web lo da por <b>regenerado</b>, lo avisa arriba durante unos días y apunta cuánto tardó. Como solo lo sabemos cuando alguien lo mira, el tiempo real es un rango; con cada caso la previsión de los sitios agotados será más fina.</p>
     <p>Un <b>sitio</b> es un depósito de un solo mineral (la mancha morada del escáner); puede medir más de 100 m y admitir varios taladros. Los taladros deben estar a <b>47 m</b> como mínimo entre sí. </p>
     <p>Datos enviados por los miembros con el plugin <a href="https://github.com/skullflota/SkullMining">Skull Mining</a> para EDMC.</p>
   </footer>
@@ -323,7 +378,7 @@
 <script>
 (function () {
   "use strict";
-  var state = { sites: [], zones: [], stats: null, demo: false, zoneFilter: null };
+  var state = { sites: [], zones: [], stats: null, demo: false, zoneFilter: null, regen: null, showAll: false };
   var $ = function (id) { return document.getElementById(id); };
   var nf = new Intl.NumberFormat("es-ES");
 
@@ -552,14 +607,36 @@
     var out = "";
     if (s.density) out += '<span class="st st-' + esc(String(s.density).toLowerCase()) + '" title="Densidad">D ' + esc(s.density) + "</span> ";
     if (s.depleted) {
-      out += '<span class="st st-agotado">Agotado</span>' + (withWhen ? '<span class="st-when">' + ago(s.depleted).text + "</span>" : "");
+      out += '<span class="st st-agotado">Agotado</span>' + (withWhen ? '<span class="st-when">' + ago(s.depleted).text + "</span>" +
+        '<div class="regenhint">' + esc(regenText(s)) + "</div>" : "");
     } else if (s.amount) {
       var a = String(s.amount);
       var tip = "Cantidad de mineral" + (s.amountTonnes ? " (marcada con " + s.amountTonnes + " t sacadas por la flota)" : "");
       out += '<span class="st st-' + esc(a.toLowerCase()) + '" title="' + esc(tip) + '">C ' + esc(a) + "</span>" +
         (withWhen ? '<span class="st-when">' + (s.amountTonnes ? esc(s.amountTonnes) + " t · " : "") + ago(s.amountTime).text + "</span>" : "");
     }
+    var rg = recentRegen(s, 30);
+    if (rg) out += ' <span class="st st-regen" title="Estaba agotado y alguien lo ha visto con mineral otra vez">♻ Regenerado' +
+      (withWhen ? " " + ago(s.regenerated).text : "") + "</span>";
     return out || '<span class="muted">—</span>';
+  }
+  // ¿Se regeneró hace menos de N días (y sigue sin agotarse otra vez)?
+  function recentRegen(s, days) {
+    if (!s.regenerated || s.depleted) return false;
+    var t = new Date(s.regenerated).getTime();
+    return !isNaN(t) && Date.now() - t < days * 86400e3;
+  }
+  // Previsión de regreso de un sitio agotado, con lo que la flota ha visto regenerarse (días entre agotarse y verse con mineral)
+  function dm(ms) { return new Date(ms).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" }); }
+  function regenText(s) {
+    var r = state.regen;
+    if (!r || !r.n) return "Aún no sabemos si se regenera: si lo ves con mineral, márcalo con el plugin.";
+    var since = new Date(s.depletedSince || s.depleted).getTime();
+    if (isNaN(since)) return "";
+    var from = since + (Number(r.minDays) || 0) * 864e5, to = since + Number(r.maxDays) * 864e5;
+    var casos = " (" + r.n + (r.n === 1 ? " caso" : " casos") + " vistos)";
+    if (Date.now() > to) return "Ya debería haberse regenerado: pásate a mirar y márcalo." + casos;
+    return "Podría regenerarse entre el " + dm(from) + " y el " + dm(to) + "." + casos;
   }
   // Compatibilidad con la hoja antigua (un solo campo "state")
   var OLD_DENSITY = { Alto: "Alta", Medio: "Media", Bajo: "Baja" };
@@ -644,6 +721,7 @@
       switch (sort) {
         case "price": return num(b.price, -1) - num(a.price, -1);
         case "left": return leftValue(b) - leftValue(a);
+        case "crh": return num(b.crh, -1) - num(a.crh, -1) || num(b.value, -1) - num(a.value, -1);
         case "rigs": return num(b.rigs, -1) - num(a.rigs, -1) || num(b.value, -1) - num(a.value, -1);
         case "nearest": return num(a.nearest, Infinity) - num(b.nearest, Infinity);
         case "lastVisit": return new Date(b.lastVisit || 0) - new Date(a.lastVisit || 0);
@@ -657,12 +735,65 @@
     return '<button class="copy" type="button" data-copy="' + esc(text) + '" title="Copiar nombre del sistema">copiar</button>';
   }
 
+  // ¿Está el visitante buscando o filtrando? Entonces se ven los resultados; si no, el resumen (Top 10, marcados, últimos)
+  function hasFilters() {
+    return !!(state.showAll || state.zoneFilter || $("q").value.trim() || $("mineral").value || Number($("minRigs").value) ||
+      $("terrain").value || $("groundF").value || $("densityF").value || $("depletedF").value !== "hide");
+  }
+  function hasData(q) {
+    q = q.toLowerCase();
+    var hit = function (a, b) { return ((a || "") + " " + (b || "")).toLowerCase().indexOf(q) >= 0; };
+    return state.sites.some(function (s) { return hit(s.system, s.body); }) ||
+           (state.zones || []).some(function (z) { return hit(z.system, z.body); });
+  }
+  // Sistemas con nombre parecido (comparten alguna palabra) para ayudar cuando no hay datos
+  function similarSystems(q) {
+    var words = q.toLowerCase().split(/\s+/).filter(function (w) { return w.length >= 3; });
+    var seen = {}, out = [];
+    state.sites.forEach(function (s) {
+      var n = String(s.system || ""), l = n.toLowerCase();
+      if (!n || seen[n]) return;
+      var score = words.filter(function (w) { return l.indexOf(w) >= 0; }).length;
+      if (score) { seen[n] = 1; out.push([score, n]); }
+    });
+    out.sort(function (a, b) { return b[0] - a[0] || a[1].localeCompare(b[1], "es"); });
+    return out.slice(0, 5).map(function (x) { return x[1]; });
+  }
+  function noDataHtml(q) {
+    var sim = similarSystems(q);
+    return '<div class="nodata"><b>No hay datos de «' + esc(q) + '»</b> en la base de la flota: nadie ha minado ni marcado sitios ahí todavía, ' +
+      "o el nombre está escrito de otra forma. Si minas allí, marca el sitio con el plugin y aparecerá en la web." +
+      (sim.length ? '<div class="sugg"><span class="muted">¿Quizá buscabas…?</span>' + sim.map(function (n) {
+        return '<button type="button" data-sys="' + esc(n) + '">' + esc(n) + "</button>";
+      }).join("") + "</div>" : "") + "</div>";
+  }
+  function refresh() { renderZones(); render(); }
+  function clearAll() {
+    $("q").value = ""; $("mineral").value = ""; $("minRigs").value = "0"; $("terrain").value = ""; $("groundF").value = "";
+    $("densityF").value = ""; $("depletedF").value = "hide";
+    state.zoneFilter = null; state.showAll = false; refresh();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function render() {
+    var searching = hasFilters();
+    $("results").hidden = !searching;
+    $("home").hidden = searching;
+    $("nodata").innerHTML = "";
+    if (!searching) { $("count").innerHTML = ""; return; }
+    var q = $("q").value.trim();
+    if (q && !hasData(q)) {
+      $("count").innerHTML = '<button type="button" class="clearall" id="clearAll">✕ Limpiar búsqueda</button>';
+      $("nodata").innerHTML = noDataHtml(q);
+      $("results").hidden = true;
+      return;
+    }
     var list = filtered();
     $("count").innerHTML = list.length + (list.length === 1 ? " sitio" : " sitios") +
       (list.length !== state.sites.length ? " de " + state.sites.length : "") +
       (state.zoneFilter ? '<span class="chip">' + esc(shortBody(state.zoneFilter)) + " · Zona " + esc(state.zoneFilter.zone) +
-        ' <button type="button" id="clearZone" aria-label="Quitar filtro de zona">✕</button></span>' : "");
+        ' <button type="button" id="clearZone" aria-label="Quitar filtro de zona">✕</button></span>' : "") +
+      ' <button type="button" class="clearall" id="clearAll">✕ Limpiar búsqueda</button>';
     var rows = [], cards = [];
     list.forEach(function (s, i) {
       var v = ago(s.lastVisit);
@@ -672,7 +803,7 @@
         '<tr class="' + cls + '">' +
         '<td class="rank">' + (i + 1) + "</td>" +
         '<td><div class="mineral">' + esc(s.mineral) + '</div><div class="price">' + credits(s.price) + "/t</div>" + sellBtn(s) + "</td>" +
-        '<td class="num"><span class="value">' + credits(s.value) + '</span><div class="price">' + (s.tpc ? esc(s.tpc) + " t/recogida" :
+        '<td class="num"><span class="value">' + credits(s.value) + '</span>' + (s.crh ? '<div class="price" title="Mediana de las sesiones de la flota en este sitio">≈ ' + credits(s.crh) + "/h</div>" : "") + '<div class="price">' + (s.tpc ? esc(s.tpc) + " t/recogida" :
           (Number(s.visits) === 0 ? '<span title="Marcado con el formulario del plugin, aún sin minar: valor estimado con taladros llenos">📌 marcado · estimado</span>' : "")) + "</div>" +
           '<div class="left" title="' + esc(leftTitle(s)) + '">' + esc(tonsLeftText(s, false)) + "</div>" +
           ($("sort").value === "left" && !s.depleted ? '<div class="left">≈ ' + credits(leftValue(s)) + " en total</div>" : "") + "</td>" +
@@ -709,32 +840,88 @@
     $("notice").innerHTML = html ? '<div class="notice ' + kind + '">' + html + "</div>" : "";
   }
 
-  function renderTop10() {
-    var num = function (v) { return v == null || v === "" ? -1 : Number(v); };
-    var list = state.sites.filter(function (s) { return !s.depleted; }).sort(function (a, b) {
-      return num(b.price) - num(a.price) || num(b.rigs) - num(a.rigs) || num(b.value) - num(a.value);
-    }).slice(0, 10);
-    $("top10").hidden = !list.length;
+  // Lista de ranking (Top 10 y marcados). cfg: pHead/p = primera cifra, vHead/v = valor, empty = texto si no hay filas
+  function rankList(secId, listId, list, cfg) {
+    $(secId).hidden = !list.length && !cfg.empty;
     var mobile = window.matchMedia("(max-width: 900px)").matches;
-    var head = '<li class="head"><span></span><span>Mineral</span><span>Precio</span><span>Ubicación</span>' +
-      '<span>Taladros</span><span style="text-align:right">Valor/vuelta</span><span>Terreno</span></li>';
-    $("top10list").innerHTML = (mobile ? "" : head) + list.map(function (s, i) {
+    var head = '<li class="head"><span></span><span>Mineral</span><span>' + cfg.pHead + '</span><span>Ubicación</span>' +
+      '<span>Taladros</span><span style="text-align:right">' + cfg.vHead + '</span><span>Terreno</span></li>';
+    if (!list.length) { $(listId).innerHTML = '<li class="muted" style="display:block">' + cfg.empty + "</li>"; return; }
+    $(listId).innerHTML = (mobile ? "" : head) + list.map(function (s, i) {
       var where = '<div class="where"><div>' + esc(s.system) + '</div><div class="b">' + esc(shortBody(s)) + " · " + zoneLabel(s) +
         (s.density || s.amount ? " · " + stateBadge(s) : "") + "</div></div>";
       if (mobile) {
         return '<li class="r' + (i + 1) + '"><span class="pos">' + (i + 1) + '</span><span class="m">' + esc(s.mineral) + '</span><span class="p">' +
-          credits(s.price) + "/t</span>" + where + '<div class="extra">' + rigsDots(s.rigs) + terrainBadge(s.terrain) +
-          '<span class="muted">' + credits(s.value) + "/vuelta</span></div></li>";
+          cfg.p(s) + "</span>" + where + '<div class="extra">' + rigsDots(s.rigs) + terrainBadge(s.terrain) +
+          '<span class="muted">' + cfg.v(s) + "/vuelta</span></div></li>";
       }
       return '<li class="r' + (i + 1) + '"><span class="pos">' + (i + 1) + '</span><span class="m">' + esc(s.mineral) + '</span>' +
-        '<span class="p">' + credits(s.price) + "/t</span>" + where +
-        '<span class="rg">' + rigsDots(s.rigs) + '</span><span class="v">' + credits(s.value) + "</span>" +
+        '<span class="p">' + cfg.p(s) + "</span>" + where +
+        '<span class="rg">' + rigsDots(s.rigs) + '</span><span class="v">' + cfg.v(s) + "</span>" +
         '<span class="tr">' + terrainBadge(s.terrain) + "</span></li>";
     }).join("");
   }
-  window.addEventListener("resize", function () { if (state.sites.length) renderTop10(); });
+  var num0 = function (v) { return v == null || v === "" ? -1 : Number(v); };
+  // Top 10 por Cr/hora: solo sitios minados de verdad (con sesiones), que no estén agotados
+  function renderTop10() {
+    var list = state.sites.filter(function (s) { return !s.depleted && Number(s.crh) > 0; })
+      .sort(function (a, b) { return num0(b.crh) - num0(a.crh) || num0(b.value) - num0(a.value); }).slice(0, 10);
+    rankList("top10", "top10list", list, { pHead: "Cr/hora", p: function (s) { return credits(s.crh) + "/h"; },
+      vHead: "Valor/vuelta", v: function (s) { return credits(s.value); },
+      empty: state.sites.length ? "Todavía no hay sesiones con tiempo medido: en cuanto la flota mine con el plugin, aquí saldrán los mejores sitios por hora." : "" });
+  }
+  // Sitios apuntados con el formulario del plugin que nadie ha minado aún
+  function renderMarked() {
+    var all = state.sites.filter(function (s) { return !s.depleted && Number(s.visits) === 0; })
+      .sort(function (a, b) { return num0(b.value) - num0(a.value); });
+    rankList("marked", "markedlist", all.slice(0, 10), { pHead: "Precio", p: function (s) { return credits(s.price) + "/t"; },
+      vHead: "Valor/vuelta (est.)", v: function (s) { return "≈ " + credits(s.value); } });
+    if (all.length > 10) $("markedlist").insertAdjacentHTML("beforeend",
+      '<li class="muted" style="display:block">Y ' + (all.length - 10) + " más: búscalos por sistema o con el filtro de mineral.</li>");
+  }
+  // Últimos sitios añadidos o actualizados: el último suceso de cada sitio
+  function renderLatest() {
+    var ev = [];
+    state.sites.forEach(function (s) {
+      var c = [
+        [s.regenerated, 6, "♻ Regenerado"], [s.depleted, 5, "🚫 Agotado"],
+        [s.created, 4, Number(s.visits) === 0 ? "📌 Marcado" : "⛏️ Sitio nuevo"],
+        [s.lastVisit, 3, "Minado"],
+        [s.amountTime, 2, s.amount ? "Cantidad " + String(s.amount).toLowerCase() : "Cantidad"],
+        [s.densityTime, 1, s.density ? "Densidad " + String(s.density).toLowerCase() : "Densidad"]
+      ].map(function (x) { return { t: new Date(x[0]).getTime(), pr: x[1], label: x[2] }; })
+       .filter(function (x) { return !isNaN(x.t) && x.t > 0; });
+      if (!c.length) return;
+      c.sort(function (a, b) { return b.t - a.t || b.pr - a.pr; });
+      ev.push({ s: s, t: c[0].t, label: c[0].label });
+    });
+    ev.sort(function (a, b) { return b.t - a.t; });
+    ev = ev.slice(0, 8);
+    $("latest").hidden = !ev.length;
+    $("latestlist").innerHTML = ev.map(function (e) {
+      var s = e.s;
+      return '<li><span class="when">' + ago(new Date(e.t).toISOString()).text + '</span><span class="m">' + esc(s.mineral) + "</span>" +
+        '<div class="where"><div>' + esc(s.system) + '</div><div class="b">' + esc(shortBody(s)) + " · " + zoneLabel(s) + "</div></div>" +
+        '<span class="ev">' + esc(e.label) + "</span></li>";
+    }).join("");
+  }
+  // Aviso de sitios regenerados hace poco (visible siempre, para que los comandantes lo vean)
+  function renderRegenNotice() {
+    var list = state.sites.filter(function (s) { return recentRegen(s, 14); })
+      .sort(function (a, b) { return new Date(b.regenerated) - new Date(a.regenerated); });
+    if (!list.length) { $("regenNotice").innerHTML = ""; return; }
+    $("regenNotice").innerHTML = '<div class="regenbox"><b>♻ Sitios regenerados</b> · estaban agotados y alguien los ha visto con mineral otra vez:<ul>' +
+      list.slice(0, 4).map(function (s) {
+        return '<li><button type="button" class="rgo" data-sys="' + esc(s.system) + '">' + esc(s.mineral) + "</button> · " + esc(s.system) +
+          " " + esc(shortBody(s)) + " · " + zoneLabel(s) + " · " + ago(s.regenerated).text + "</li>";
+      }).join("") + (list.length > 4 ? '<li class="muted">y ' + (list.length - 4) + " más</li>" : "") + "</ul></div>";
+  }
+  function renderHome() { renderTop10(); renderMarked(); renderLatest(); }
+  window.addEventListener("resize", function () { if (state.sites.length) renderHome(); });
 
   function renderZones() {
+    var q = $("q").value.trim().toLowerCase();
+    if (!q && !state.zoneFilter) { $("zones").hidden = true; $("zonelist").innerHTML = ""; return; }
     var bodies = {};
     function key(sys, body) { return sys + "\u0001" + body; }
     (state.zones || []).forEach(function (z) {
@@ -748,6 +935,11 @@
       b.total = b.total || s.bodySites;
       var zz = (b.zones[s.zone] = b.zones[s.zone] || { z: { zone: s.zone, minerals: "", confirmed: "" }, sites: [] });
       zz.sites.push(s);
+    });
+    Object.keys(bodies).forEach(function (k) {
+      var b = bodies[k];
+      var ok = q ? (b.system + " " + b.body).toLowerCase().indexOf(q) >= 0 : b.body === state.zoneFilter.body;
+      if (!ok) delete bodies[k];
     });
     var html = Object.keys(bodies).map(function (k) {
       var b = bodies[k];
@@ -781,12 +973,13 @@
     state.names = (data && data.names) || {};
     state.sales = (data && data.sales) || {};
     state.stats = data && data.stats;
+    state.regen = (data && data.regen) || null;
     renderStats();
-    renderTop10();
-    renderZones();
+    renderRegenNotice();
+    renderHome();
     fillMinerals();
     fillGrounds();
-    render();
+    refresh();
     if (data && data.updated) {
       $("updated").innerHTML = "Actualizado <b>" + new Date(data.updated).toLocaleString("es-ES") + "</b>";
     }
@@ -811,7 +1004,7 @@
     var useDemo = params.has("demo") || !api;
     state.api = api; state.demo = useDemo;
     ["q", "mineral", "minRigs", "terrain", "groundF", "densityF", "depletedF", "sort"].forEach(function (id) {
-      $(id).addEventListener(id === "q" ? "input" : "change", render);
+      $(id).addEventListener(id === "q" ? "input" : "change", refresh);
     });
     // Logo y título: recarga la página saltándose la caché del navegador (como Ctrl+F5),
     // conservando ?demo y demás parámetros.
@@ -829,9 +1022,17 @@
         var sel = $("mineral"), val = pm.dataset.mineral;
         for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === val) { sel.value = val; break; }
         if ($("depletedF").value === "only") $("depletedF").value = "hide";
-        render(); $("count").scrollIntoView({ behavior: "smooth", block: "start" });
+        refresh(); $("count").scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
+      var go = e.target.closest("button.rgo, .nodata .sugg button");
+      if (go) {
+        $("q").value = go.dataset.sys; state.zoneFilter = null; refresh();
+        $("count").scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      if (e.target.id === "showAll") { state.showAll = true; refresh(); $("count").scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+      if (e.target.id === "clearAll") { clearAll(); return; }
       var z = e.target.closest("button.zcard");
       if (z) {
         var same = state.zoneFilter && state.zoneFilter.body === z.dataset.body && String(state.zoneFilter.zone) === z.dataset.zone;
@@ -863,7 +1064,13 @@
     renderStats();
     if (useDemo) {
       setNotice("demo", "<b>Modo demostración:</b> datos de ejemplo" + (api ? "" : " (falta configurar la URL de la hoja en <code>config.js</code>)") + ".");
-      fetch("demo.json").then(function (r) { return r.json(); }).then(load)
+      fetch("demo.json").then(function (r) { return r.json(); }).then(function (d) {
+        // Fechas de la demo relativas a hoy (_ago = días atrás), para que los avisos de "reciente" se vean siempre
+        (d.sites || []).forEach(function (s) {
+          Object.keys(s._ago || {}).forEach(function (k) { s[k] = new Date(Date.now() - s._ago[k] * 864e5).toISOString(); });
+        });
+        return d;
+      }).then(load)
         .catch(function () { setNotice("error", "No se pudieron cargar los datos de ejemplo."); });
       return;
     }

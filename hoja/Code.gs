@@ -15,7 +15,7 @@
 var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 taladros a 103 m en la misma mancha (28-sep)
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '10';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '11';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
 // Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
 // el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
@@ -30,7 +30,8 @@ var HEADERS = {
              'Mismo mineral más cercano (m)', 'Terreno zona', 'Vel. efectiva zona (m/s)', 'Señal zona',
              'Sitios minería en cuerpo', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Última visita', 'Último CMDR',
              'Zona', 'Densidad', 'Densidad fecha', 'Densidad CMDR', 'Agotado', 'Agotado CMDR',
-             'Cantidad', 'Cantidad fecha', 'Cantidad CMDR', 'Cantidad t flota', 'Taladros marcados'],
+             'Cantidad', 'Cantidad fecha', 'Cantidad CMDR', 'Cantidad t flota', 'Taladros marcados',
+             'Agotado desde', 'Regenerado', 'Regenerado CMDR', 'Creado', 'Cr/h'],
   'Visitas': ['SessionID', 'SiteID', 'Fecha', 'CMDR', 'Mineral', 'Taladros', 'Dist. mín entre taladros (m)',
               'Extensión (m)', 'Recogidas', 'Toneladas', 'T/recogida', 'Terreno zona', 'Vel. efectiva zona (m/s)',
               'Zona'],
@@ -57,8 +58,14 @@ var HEADERS = {
   'Zonas': ['Sistema', 'Cuerpo', 'Zona', 'Lat', 'Lon', 'Minerales (anotar a mano)', 'Minerales confirmados',
             'Sitios', 'Mejor valor por vuelta (Cr)', 'Actualizado'],
   'Estados': ['Fecha', 'CMDR', 'Sistema', 'Cuerpo', 'Zona', 'Lat', 'Lon', 'Mineral', 'Estado', 'SiteID',
-              'T sesión', 'T flota al marcar']
+              'T sesión', 'T flota al marcar'],
+  // Un sitio agotado que alguien vuelve a marcar con cantidad (alta, media o baja) cuenta como regenerado.
+  // El tiempo real de regeneración está entre "Días mín" (hasta la última vez que se vio agotado) y
+  // "Días máx" (hasta que se vio regenerado), porque solo lo sabemos cuando alguien lo marca.
+  'Regeneraciones': ['SiteID', 'Sistema', 'Cuerpo', 'Mineral', 'Agotado desde', 'Visto agotado por última vez',
+                     'Regenerado', 'CMDR', 'Días mín', 'Días máx']
 };
+var REGEN_MIN_H = 6; // una cantidad marcada a menos de 6 h de un "Agotado" se toma por una corrección, no por una regeneración
 
 var PRICE_SEED = [
   ['monazite', 'Monacita', 'Monazite', 270000], ['alexandrite', 'Alejandrita', 'Alexandrite', 229000],
@@ -215,7 +222,8 @@ var PUBLIC_SITE_FIELDS = {
   'Sitios minería en cuerpo': 'bodySites', 'Tipo planeta': 'planetClass', 'Gravedad (g)': 'gravity',
   'Temp (K)': 'temp', 'Última visita': 'lastVisit', 'Zona': 'zone', 'Densidad': 'density',
   'Densidad fecha': 'densityTime', 'Agotado': 'depleted', 'Cantidad': 'amount', 'Cantidad fecha': 'amountTime',
-  'Cantidad t flota': 'amountTonnes'
+  'Cantidad t flota': 'amountTonnes', 'Agotado desde': 'depletedSince', 'Regenerado': 'regenerated',
+  'Creado': 'created', 'Cr/h': 'crh'
 };
 
 function publicRanking_(callback) {
@@ -271,7 +279,23 @@ function publicRanking_(callback) {
     if (price > o.best) { o.best = price; o.bestSystem = r[7] || ''; }
     if (!o.lastTime || timeOf_(when) >= timeOf_(o.lastTime)) { o.last = price; o.lastSystem = r[7] || ''; o.lastTime = when; }
   });
+  // Regeneraciones vistas por la flota: tiempo (en días) entre agotarse y verse regenerado
+  var rg = sheet_('Regeneraciones').getDataRange().getValues();
+  var RH = rg.shift();
+  var mins = [], maxs = [];
+  rg.forEach(function (r) {
+    if (!r[0]) return;
+    var a = Number(r[RH.indexOf('Días mín')]), b = Number(r[RH.indexOf('Días máx')]);
+    if (!isNaN(b) && r[RH.indexOf('Días máx')] !== '') { maxs.push(b); mins.push(isNaN(a) ? 0 : a); }
+  });
+  var med = function (v) {
+    if (!v.length) return null;
+    v = v.slice().sort(function (x, y) { return x - y; });
+    var m = Math.floor(v.length / 2);
+    return v.length % 2 ? v[m] : round_((v[m - 1] + v[m]) / 2, 1);
+  };
   var out = { ok: true, updated: new Date().toISOString(), sites: sites, zones: zones, names: names, sales: sales,
+              regen: { n: maxs.length, minDays: med(mins), maxDays: med(maxs) },
               stats: { sites: sites.length, sessions: ses.length, commanders: Object.keys(cmdrs).length, tonnes: tonnes } };
   var txt = JSON.stringify(out);
   if (callback && /^[A-Za-z_$][\w$.]{0,60}$/.test(callback)) {
@@ -394,7 +418,7 @@ function assignSite_(d, st, esName, prices) {
   set('Mineral', esName[st.main_type] || st.main_type); set('Nombre interno', st.main_type);
   set('Lat', st.lat); set('Lon', st.lon); set('Señal zona', d.site_signal);
   set('Sitios minería en cuerpo', d.mining_locations_on_body); set('Tipo planeta', d.planet_class);
-  set('Gravedad (g)', d.gravity_g); set('Temp (K)', d.temp_k); set('Zona', st.zone);
+  set('Gravedad (g)', d.gravity_g); set('Temp (K)', d.temp_k); set('Zona', st.zone); set('Creado', new Date());
   sh.appendRow(row);
   applyPendingStates_(id, d.system, d.body, st.main_type, st.lat, st.lon, d.planet_radius_m);
   return id;
@@ -436,6 +460,22 @@ function recomputeSite_(siteId, prices) {
   // Sin recogidas (sitio solo marcado con el formulario): se supone un taladro lleno, ~11,5 t
   set('Valor por vuelta (Cr)', maxRigs ? Math.round(maxRigs * (tpc !== '' ? tpc : MARK_TPC) * price) : '');
   set('Visitas', rows.length);
+  // Cr/h del sitio: mediana del Cr/h de las sesiones que lo visitaron (mejor las que solo minaron ese sitio)
+  var ses = sheet_('Sesiones').getDataRange().getValues();
+  var SH = ses.shift();
+  var ciS = SH.indexOf('Sitios'), ciC = SH.indexOf('Cr/h');
+  var mine = ses.filter(function (x) {
+    return String(x[ciS]).split(',').map(function (z) { return z.trim(); }).indexOf(siteId) >= 0 && Number(x[ciC]) > 0;
+  });
+  var solo = mine.filter(function (x) { return String(x[ciS]).indexOf(',') < 0; });
+  var crhList = (solo.length ? solo : mine).map(function (x) { return Number(x[ciC]); });
+  set('Cr/h', crhList.length ? Math.round(median(crhList)) : '');
+  // Fecha de creación: la primera visita; si no hay, la última visita o la fecha de hoy
+  if (cur[H.indexOf('Creado')] === '' || cur[H.indexOf('Creado')] === null) {
+    var firstV = rows.length ? rows.map(function (x) { return timeOf_(x[vc('Fecha')]); }).filter(Boolean).sort()[0] : 0;
+    var lastV = timeOf_(cur[H.indexOf('Última visita')]);
+    set('Creado', new Date(firstV || lastV || Date.now()));
+  }
   if (!rows.length) { sh.getRange(r, 1, 1, H.length).setValues([cur]); return; }
   set('Recogidas', sum(vals('Recogidas')));
   set('Toneladas totales', sum(vals('Toneladas')));
@@ -528,7 +568,7 @@ function handleMark_(d) {
     set('Sitios minería en cuerpo', d.mining_locations_on_body); set('Tipo planeta', d.planet_class);
     set('Gravedad (g)', d.gravity_g); set('Temp (K)', d.temp_k); set('Zona', d.zone);
     set('Visitas', 0); set('Recogidas', 0); set('Toneladas totales', 0); set('Terreno zona', 'sin datos');
-    set('Última visita', d.time); set('Último CMDR', d.cmdr);
+    set('Última visita', d.time); set('Último CMDR', d.cmdr); set('Creado', new Date());
     sh.appendRow(row);
     created = true;
     if (d.body) handleBody_({ system: d.system, body: d.body, planet_class: d.planet_class, gravity_g: d.gravity_g,
@@ -575,9 +615,10 @@ function handleState_(d) {
   if (siteId) { var row = siteRow_(siteId); prev = row ? Number(row['Toneladas totales']) || 0 : 0; }
   sheet_('Estados').appendRow([d.time, d.cmdr, d.system, d.body, nz_(d.zone), d.lat, d.lon,
                                d.type ? (esName[d.type] || d.type) : '', label, siteId || '', sesT, prev + sesT]);
-  if (siteId) setSiteState_(siteId, label, d.time, d.cmdr, prev + sesT);
+  var regen = siteId ? setSiteState_(siteId, label, d.time, d.cmdr, prev + sesT) : null;
   if (d.zone !== null && d.zone !== undefined) upsertZone_(d.system, d.body, d.zone);
   try { notifyState_(d, label, siteId, esName); } catch (err) { Logger.log('Discord: ' + err); }
+  try { if (regen && regen.isNew) notifyRegen_(regen); } catch (err) { Logger.log('Discord: ' + err); }
 }
 
 function findSiteNear_(system, body, type, lat, lon, R) {
@@ -603,16 +644,42 @@ function setSiteState_(siteId, label, when, cmdr, fleetT) {
   var r = findRow_('Sitios', 1, siteId);
   if (r < 0) return;
   var t = fleetT === '' || fleetT === undefined || fleetT === null ? '' : fleetT;
+  var col = function (n) { return H.indexOf(n) + 1; };
+  var regen = null;
   if (label === 'Agotado') {
-    sh.getRange(r, H.indexOf('Agotado') + 1, 1, 2).setValues([[when, cmdr || '']]);
-    sh.getRange(r, H.indexOf('Cantidad') + 1, 1, 4).setValues([['Agotada', when, cmdr || '', t]]);
+    var oldAg = sh.getRange(r, col('Agotado')).getValue();
+    // Primera marca de este agotamiento: guarda desde cuándo y borra la regeneración anterior
+    if (oldAg === '' || oldAg === null) {
+      sh.getRange(r, col('Agotado desde')).setValue(when);
+      sh.getRange(r, col('Regenerado'), 1, 2).setValues([['', '']]);
+    }
+    sh.getRange(r, col('Agotado'), 1, 2).setValues([[when, cmdr || '']]);
+    sh.getRange(r, col('Cantidad'), 1, 4).setValues([['Agotada', when, cmdr || '', t]]);
   } else if (/^Cantidad /.test(label)) {
     var q = label.replace('Cantidad ', '');
-    sh.getRange(r, H.indexOf('Cantidad') + 1, 1, 4).setValues([[q.charAt(0).toUpperCase() + q.slice(1), when, cmdr || '', t]]);
-    sh.getRange(r, H.indexOf('Agotado') + 1, 1, 2).setValues([['', '']]);
+    var seen = sh.getRange(r, col('Agotado')).getValue();            // última vez visto agotado
+    var since = sh.getRange(r, col('Agotado desde')).getValue() || seen;
+    sh.getRange(r, col('Cantidad'), 1, 4).setValues([[q.charAt(0).toUpperCase() + q.slice(1), when, cmdr || '', t]]);
+    sh.getRange(r, col('Agotado'), 1, 2).setValues([['', '']]);
+    sh.getRange(r, col('Agotado desde')).setValue('');
+    // Estaba agotado y ahora tiene cantidad: regenerado (salvo que fuera una corrección enseguida)
+    if (seen !== '' && seen !== null && timeOf_(when) - timeOf_(seen) >= REGEN_MIN_H * 3600e3) {
+      var key = siteId + '|' + timeOf_(when);
+      var rs = sheet_('Regeneraciones'), rv = rs.getDataRange().getValues();
+      var dup = false;
+      for (var i = 1; i < rv.length; i++) if (rv[i][0] + '|' + timeOf_(rv[i][6]) === key) { dup = true; break; }
+      var row = siteRow_(siteId) || {};
+      var days = function (a, b) { return round_((timeOf_(b) - timeOf_(a)) / 86400e3, 1); };
+      regen = { siteId: siteId, mineral: row['Mineral'], system: row['Sistema'], body: row['Cuerpo'], cmdr: cmdr || '',
+                since: since, seen: seen, when: when, minDays: days(since, seen), maxDays: days(since, when), isNew: !dup };
+      sh.getRange(r, col('Regenerado'), 1, 2).setValues([[when, cmdr || '']]);
+      if (!dup) rs.appendRow([siteId, row['Sistema'], row['Cuerpo'], row['Mineral'], since, seen, when, cmdr || '',
+                              regen.minDays, regen.maxDays]);
+    }
   } else {
-    sh.getRange(r, H.indexOf('Densidad') + 1, 1, 3).setValues([[OLD_DENSITY[label] || label, when, cmdr || '']]);
+    sh.getRange(r, col('Densidad'), 1, 3).setValues([[OLD_DENSITY[label] || label, when, cmdr || '']]);
   }
+  return regen;
 }
 
 // Recalcula densidad y agotado de un sitio (o de todos) a partir del historial de la pestaña Estados.
@@ -623,6 +690,15 @@ function recomputeSiteStates_(siteId) {
   var seen = {};
   v.forEach(function (r) { seen[r[9]] = 1; setSiteState_(r[9], r[8], r[0], r[1], r[11]); });
   return seen;
+}
+
+// Ejecutar a mano tras actualizar el script: rellena Cr/h y Creado de todos los sitios ya existentes
+function recalcularSitios() {
+  ensureSchema_(true);
+  var prices = priceMap_();
+  var ids = sheet_('Sitios').getDataRange().getValues().slice(1).map(function (r) { return r[0]; }).filter(String);
+  ids.forEach(function (id) { recomputeSite_(id, prices); });
+  Logger.log('Sitios recalculados: ' + ids.length);
 }
 
 function recomputeAllStates_() {
@@ -774,6 +850,17 @@ function notifyState_(d, label, siteId, esName) {
   if (!cfg.url || cfg.mode === 'no' || !cfg.states || d.state !== 'agotado' || !siteId) return;
   var row = siteRow_(siteId);
   if (row) sendDiscord_({ embeds: [siteEmbed_('🚫 Agotado: ' + row['Mineral'], 0xff5d5d, row, d.cmdr)] });
+}
+
+// Aviso de un sitio que estaba agotado y alguien ha visto con mineral otra vez (mismo interruptor que el de agotado)
+function notifyRegen_(g) {
+  var cfg = discordConfig_();
+  if (!cfg.url || cfg.mode === 'no' || !cfg.states) return;
+  var row = siteRow_(g.siteId);
+  if (!row) return;
+  var emb = siteEmbed_('♻ Regenerado: ' + row['Mineral'], 0x4ade80, row, g.cmdr);
+  emb.description += '\n♻ Estuvo agotado entre ' + g.minDays + ' y ' + g.maxDays + ' días.';
+  sendDiscord_({ embeds: [emb] });
 }
 
 // Ejecuta esta función desde el editor para comprobar que el webhook funciona

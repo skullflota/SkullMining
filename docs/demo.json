@@ -43,7 +43,12 @@
    "amount": "Alta",
    "amountTonnes": null,
    "amountTime": "2026-09-28T20:17:00Z",
-   "volcanism": "major silicate vapour geysers volcanism"
+   "volcanism": "major silicate vapour geysers volcanism",
+   "crh": 4100000,
+   "_ago": {
+    "created": 3,
+    "lastVisit": 0.3
+   }
   },
   {
    "id": "DEMO2",
@@ -79,7 +84,12 @@
    "amount": "Media",
    "amountTonnes": 390,
    "amountTime": "2026-09-28T20:17:00Z",
-   "volcanism": "major silicate vapour geysers volcanism"
+   "volcanism": "major silicate vapour geysers volcanism",
+   "crh": 350000,
+   "_ago": {
+    "created": 3,
+    "lastVisit": 2
+   }
   },
   {
    "id": "DEMO3",
@@ -115,7 +125,11 @@
    "amount": null,
    "amountTonnes": null,
    "amountTime": null,
-   "volcanism": "minor metallic magma volcanism"
+   "volcanism": "minor metallic magma volcanism",
+   "crh": 6200000,
+   "_ago": {
+    "created": 12
+   }
   },
   {
    "id": "DEMO4",
@@ -151,7 +165,11 @@
    "amount": null,
    "amountTonnes": null,
    "amountTime": null,
-   "volcanism": "minor metallic magma volcanism"
+   "volcanism": "minor metallic magma volcanism",
+   "crh": 5500000,
+   "_ago": {
+    "created": 10
+   }
   },
   {
    "id": "DEMO5",
@@ -187,7 +205,13 @@
    "amount": "Agotada",
    "amountTonnes": 820,
    "amountTime": "2026-09-28T20:17:00Z",
-   "volcanism": "ninguno"
+   "volcanism": "ninguno",
+   "crh": null,
+   "_ago": {
+    "created": 20,
+    "depletedSince": 9,
+    "depleted": 5
+   }
   },
   {
    "id": "DEMO6",
@@ -223,7 +247,98 @@
    "amount": null,
    "amountTonnes": null,
    "amountTime": null,
-   "volcanism": "ninguno"
+   "volcanism": "ninguno",
+   "crh": 1900000,
+   "_ago": {
+    "created": 8
+   }
+  },
+  {
+   "id": "DEMO7",
+   "system": "Sistema de ejemplo",
+   "body": "Pegasi Sector JN-S b4-7 B 1",
+   "mineral": "Grandidierita",
+   "type": "grandidierite",
+   "price": 213000,
+   "lat": 10.5,
+   "lon": 20.5,
+   "rigs": 4,
+   "rigSpacing": 47.6,
+   "extent": 47.6,
+   "tpc": null,
+   "value": 9798000,
+   "visits": 0,
+   "collections": 0,
+   "tonnes": 0,
+   "nearest": null,
+   "nearestSame": null,
+   "terrain": "sin datos",
+   "speed": 12.4,
+   "signal": 5,
+   "bodySites": 12,
+   "planetClass": "Rocky body",
+   "gravity": 0.21,
+   "temp": 164,
+   "lastVisit": null,
+   "zone": 7,
+   "density": "Media",
+   "densityTime": null,
+   "depleted": null,
+   "amount": "Alta",
+   "amountTonnes": 0,
+   "amountTime": null,
+   "volcanism": "minor metallic magma volcanism",
+   "crh": null,
+   "_ago": {
+    "created": 0.1,
+    "amountTime": 0.1,
+    "densityTime": 0.1
+   }
+  },
+  {
+   "id": "DEMO8",
+   "system": "Sistema de ejemplo",
+   "body": "Pegasi Sector JN-S b4-7 B 2",
+   "mineral": "Diamante",
+   "type": "diamond",
+   "price": 136000,
+   "lat": -12.3,
+   "lon": 77.7,
+   "rigs": 3,
+   "rigSpacing": 47.6,
+   "extent": 47.6,
+   "tpc": 11,
+   "value": 4488000,
+   "visits": 1,
+   "collections": 14,
+   "tonnes": 158,
+   "nearest": 380,
+   "nearestSame": null,
+   "terrain": "ondulado",
+   "speed": 12.4,
+   "signal": 5,
+   "bodySites": 12,
+   "planetClass": "Rocky body",
+   "gravity": 0.21,
+   "temp": 164,
+   "lastVisit": "2026-09-27T20:40:00Z",
+   "zone": 2,
+   "density": "Alta",
+   "densityTime": "2026-09-27T20:45:00Z",
+   "depleted": null,
+   "amount": "Alta",
+   "amountTonnes": 0,
+   "amountTime": null,
+   "volcanism": "minor metallic magma volcanism",
+   "crh": 2200000,
+   "_ago": {
+    "created": 30,
+    "lastVisit": 25,
+    "depletedSince": 8,
+    "regenerated": 2,
+    "amountTime": 2,
+    "densityTime": 30
+   }
   }
  ],
  "zones": [
@@ -277,5 +392,10 @@
  "names": {
   "monazite": "Monazite",
   "thortveitite": "Thortveitite"
+ },
+ "regen": {
+  "n": 2,
+  "minDays": 3.5,
+  "maxDays": 9
  }
 }
