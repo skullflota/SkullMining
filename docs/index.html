@@ -672,7 +672,8 @@
         '<tr class="' + cls + '">' +
         '<td class="rank">' + (i + 1) + "</td>" +
         '<td><div class="mineral">' + esc(s.mineral) + '</div><div class="price">' + credits(s.price) + "/t</div>" + sellBtn(s) + "</td>" +
-        '<td class="num"><span class="value">' + credits(s.value) + '</span><div class="price">' + (s.tpc ? esc(s.tpc) + " t/recogida" : "") + "</div>" +
+        '<td class="num"><span class="value">' + credits(s.value) + '</span><div class="price">' + (s.tpc ? esc(s.tpc) + " t/recogida" :
+          (Number(s.visits) === 0 ? '<span title="Marcado con el formulario del plugin, aún sin minar: valor estimado con taladros llenos">📌 marcado · estimado</span>' : "")) + "</div>" +
           '<div class="left" title="' + esc(leftTitle(s)) + '">' + esc(tonsLeftText(s, false)) + "</div>" +
           ($("sort").value === "left" && !s.depleted ? '<div class="left">≈ ' + credits(leftValue(s)) + " en total</div>" : "") + "</td>" +
         "<td>" + rigsDots(s.rigs) + (s.rigSpacing ? '<div class="price">a ' + meters(s.rigSpacing) + "</div>" : "") + "</td>" +

@@ -11,6 +11,7 @@ import os
 import sys
 import time
 import tkinter as tk
+import webbrowser
 from typing import Optional
 
 import myNotebook as nb  # type: ignore  (lo proporciona EDMC)
@@ -102,17 +103,95 @@ def plugin_app(parent: tk.Frame):
     S.label = tk.Label(frame, text="Iniciando…", anchor=tk.W, justify=tk.LEFT)
     S.label.grid(row=0, column=1, sticky=tk.EW)
     frame.columnconfigure(1, weight=1)
-    # Botones con lo que muestra el escáner del Rhino (el juego no lo escribe en el journal)
-    rows = (("Densidad:", (("Alta", "alto"), ("Media", "medio"), ("Baja", "bajo"))),
-            ("Cantidad:", (("Alta", "cant_alta"), ("Media", "cant_media"), ("Baja", "cant_baja"), ("Agotado", "agotado"))))
-    for i, (title, buttons) in enumerate(rows):
-        row = tk.Frame(frame)
-        row.grid(row=1 + i, column=0, columnspan=2, sticky=tk.W, pady=(2, 0))
-        tk.Label(row, text=title, width=9, anchor=tk.W).pack(side=tk.LEFT)
-        for label, state in buttons:
-            tk.Button(row, text=label, padx=4, pady=0, command=lambda st=state: _mark_state(st)).pack(side=tk.LEFT, padx=1)
+    _build_form(frame)
     frame.after(2000, _refresh_label, frame)
     return frame
+
+
+# --------------------------------------------------------------- formulario
+WEB_URL = "https://skullflota.github.io/SkullMining/"
+NONE = "—"
+
+
+def _build_form(frame: tk.Frame) -> None:
+    """Formulario parecido al de RhinoSpotter: lo que dice el escáner del Rhino, enviado a la web de la flota."""
+    f = tk.Frame(frame)
+    f.grid(row=1, column=0, columnspan=2, sticky=tk.EW, pady=(3, 0))
+    f.columnconfigure(1, weight=1)
+    S.zone_var = tk.StringVar(value="")
+    S.rigs_var = tk.StringVar(value="0")
+    S.min_var = tk.StringVar(value=NONE)
+    S.amount_var = tk.StringVar(value=NONE)
+    S.density_var = tk.StringVar(value=NONE)
+    S.touched = set()
+
+    top = tk.Frame(f)
+    top.grid(row=0, column=0, columnspan=2, sticky=tk.EW)
+    tk.Label(top, text="Zona").pack(side=tk.LEFT)
+    tk.Spinbox(top, from_=0, to=99, width=4, textvariable=S.zone_var,
+               command=lambda: S.touched.add("zone")).pack(side=tk.LEFT, padx=(4, 12))
+    tk.Label(top, text="Taladros").pack(side=tk.LEFT)
+    tk.Spinbox(top, from_=0, to=7, width=3, textvariable=S.rigs_var,
+               command=lambda: S.touched.add("rigs")).pack(side=tk.LEFT, padx=4)
+
+    names = [NONE] + [es for _, es in skull_tracker.MINERALS]
+    rows = (("Mineral", S.min_var, names, "mineral"),
+            ("Cantidad", S.amount_var, [NONE] + list(skull_tracker.AMOUNTS), "amount"),
+            ("Densidad", S.density_var, [NONE] + list(skull_tracker.DENSITIES), "density"))
+    for i, (label, var, opts, key) in enumerate(rows, start=1):
+        tk.Label(f, text=label).grid(row=i, column=0, sticky=tk.W)
+        om = tk.OptionMenu(f, var, *opts, command=lambda _v, k=key: S.touched.add(k))
+        om.configure(anchor=tk.W, highlightthickness=0)
+        om.grid(row=i, column=1, sticky=tk.EW, padx=(6, 0), pady=1)
+
+    btns = tk.Frame(f)
+    btns.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=(3, 0))
+    tk.Button(btns, text="Enviar a web Skullmining", command=_send_form).pack(side=tk.LEFT)
+    tk.Button(btns, text="Ir a web Skullmining", command=lambda: webbrowser.open(WEB_URL)).pack(side=tk.LEFT, padx=(6, 0))
+
+
+def _fill_form() -> None:
+    """Rellena zona, mineral y taladros con lo que sabe el plugin, salvo lo que haya tocado el usuario."""
+    if S.tracker is None or not hasattr(S, "zone_var"):
+        return
+    try:
+        sug = S.tracker.suggest()
+    except Exception:
+        return
+    if "zone" not in S.touched and sug.get("zone") is not None:
+        S.zone_var.set(str(sug["zone"]))
+    if "mineral" not in S.touched and sug.get("type"):
+        S.min_var.set(dict(skull_tracker.MINERALS).get(sug["type"], S.min_var.get()))
+    if "rigs" not in S.touched and sug.get("rigs"):
+        S.rigs_var.set(str(sug["rigs"]))
+
+
+def _send_form() -> None:
+    if S.tracker is None:
+        return
+    by_name = {es: t for t, es in skull_tracker.MINERALS}
+    get = lambda v: None if v.get() in ("", NONE) else v.get()
+    try:
+        zone = int(S.zone_var.get()) if S.zone_var.get().strip() else None
+    except ValueError:
+        zone = None
+    try:
+        rigs = int(S.rigs_var.get() or 0)
+    except ValueError:
+        rigs = 0
+    try:
+        msg = S.tracker.mark_site(zone, rigs, by_name.get(S.min_var.get()), get(S.amount_var), get(S.density_var))
+        if msg.startswith("Enviado"):
+            S.touched.clear()       # el siguiente sitio vuelve a rellenarse solo
+            S.amount_var.set(NONE)
+            S.density_var.set(NONE)
+    except Exception:
+        logger.exception("Error enviando el sitio")
+        msg = "No se pudo enviar el sitio"
+    S.flash = msg
+    S.flash_until = time.time() + 6
+    if S.label is not None:
+        S.label["text"] = msg
 
 
 def _mark_state(state: str) -> None:
@@ -131,6 +210,7 @@ def _mark_state(state: str) -> None:
 
 def _refresh_label(frame: tk.Frame) -> None:
     if S.label is not None and S.tracker is not None:
+        _fill_form()
         txt = S.tracker.live_text()
         if not _enabled():
             txt = "Desactivado"

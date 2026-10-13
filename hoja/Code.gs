@@ -15,7 +15,7 @@
 var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 taladros a 103 m en la misma mancha (28-sep)
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '9';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '10';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
 // Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
 // el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
@@ -30,7 +30,7 @@ var HEADERS = {
              'Mismo mineral más cercano (m)', 'Terreno zona', 'Vel. efectiva zona (m/s)', 'Señal zona',
              'Sitios minería en cuerpo', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Última visita', 'Último CMDR',
              'Zona', 'Densidad', 'Densidad fecha', 'Densidad CMDR', 'Agotado', 'Agotado CMDR',
-             'Cantidad', 'Cantidad fecha', 'Cantidad CMDR', 'Cantidad t flota'],
+             'Cantidad', 'Cantidad fecha', 'Cantidad CMDR', 'Cantidad t flota', 'Taladros marcados'],
   'Visitas': ['SessionID', 'SiteID', 'Fecha', 'CMDR', 'Mineral', 'Taladros', 'Dist. mín entre taladros (m)',
               'Extensión (m)', 'Recogidas', 'Toneladas', 'T/recogida', 'Terreno zona', 'Vel. efectiva zona (m/s)',
               'Zona'],
@@ -178,6 +178,7 @@ function doPost(e) {
       case 'body': handleBody_(d); break;
       case 'event': handleEvent_(d); break;
       case 'state': handleState_(d); break;
+      case 'mark': handleMark_(d); break;
       default: return json_({ ok: false, error: 'kind' });
     }
   } catch (err) {
@@ -404,7 +405,6 @@ function recomputeSite_(siteId, prices) {
   var VH = vis[0];
   var vc = function (n) { return VH.indexOf(n); };
   var rows = vis.slice(1).filter(function (r) { return r[1] === siteId; });
-  if (!rows.length) return;
   var vals = function (n) { return rows.map(function (r) { return r[vc(n)]; }).filter(function (x) { return x !== '' && x !== null; }); };
   var median = function (v) {
     if (!v.length) return '';
@@ -420,7 +420,8 @@ function recomputeSite_(siteId, prices) {
   var cur = sh.getRange(r, 1, 1, H.length).getValues()[0];
   var set = function (n, v) { cur[H.indexOf(n)] = v; };
   var price = prices[String(cur[H.indexOf('Nombre interno')]).toLowerCase()] || 0;
-  var maxRigs = Math.max.apply(null, vals('Taladros').concat([0]));
+  var declared = Number(cur[H.indexOf('Taladros marcados')]) || 0;
+  var maxRigs = Math.max.apply(null, vals('Taladros').concat([declared]));
   var spacing = vals('Dist. mín entre taladros (m)');
   var tpc = median(vals('T/recogida'));
   var votes = {};
@@ -432,8 +433,10 @@ function recomputeSite_(siteId, prices) {
   set('Extensión (m)', Math.max.apply(null, vals('Extensión (m)').concat([0])));
   set('T/recogida', tpc);
   // Valor de recoger todos los taladros una vez: la cifra para comparar sitios
-  set('Valor por vuelta (Cr)', tpc !== '' ? Math.round(maxRigs * tpc * price) : '');
+  // Sin recogidas (sitio solo marcado con el formulario): se supone un taladro lleno, ~11,5 t
+  set('Valor por vuelta (Cr)', maxRigs ? Math.round(maxRigs * (tpc !== '' ? tpc : MARK_TPC) * price) : '');
   set('Visitas', rows.length);
+  if (!rows.length) { sh.getRange(r, 1, 1, H.length).setValues([cur]); return; }
   set('Recogidas', sum(vals('Recogidas')));
   set('Toneladas totales', sum(vals('Toneladas')));
   set('Terreno zona', Object.keys(votes).sort(function (a, b) { return votes[b] - votes[a]; })[0] || 'sin datos');
@@ -499,6 +502,64 @@ function recomputeZones_(system, body) {
       if (v !== '' && (best === '' || v > best)) best = v;
     });
     sh.getRange(j + 1, 7, 1, 4).setValues([[Object.keys(minerals).join(', '), mine.length, best, new Date()]]);
+  }
+}
+
+// --------------------------------------------------------- formulario de sitio
+// El plugin (v0.6.0+) envía "mark": sitio, mineral, taladros, cantidad y densidad leídos en el escáner,
+// aunque no se haya minado. Si el sitio no existe, se crea; los estados van por handleState_.
+var MARK_TPC = 11.5;
+var MARK_DENSITY = { Alta: 'alto', Media: 'medio', Baja: 'bajo' };
+var MARK_AMOUNT = { Alta: 'cant_alta', Media: 'cant_media', Baja: 'cant_baja', Agotado: 'agotado' };
+
+function handleMark_(d) {
+  if (!d.type || !d.planet_radius_m || d.lat == null) return;
+  var esName = esNames_(), prices = priceMap_();
+  var created = false;
+  var siteId = findSiteNear_(d.system, d.body, d.type, d.lat, d.lon, d.planet_radius_m);
+  if (!siteId) {
+    var sh = sheet_('Sitios'), H = HEADERS['Sitios'];
+    siteId = 'S' + Utilities.formatString('%05d', sh.getLastRow());
+    var row = new Array(H.length).fill('');
+    var set = function (n, v) { row[H.indexOf(n)] = (v === null || v === undefined) ? '' : v; };
+    set('SiteID', siteId); set('Sistema', d.system); set('Cuerpo', d.body);
+    set('Mineral', esName[d.type] || d.type); set('Nombre interno', d.type);
+    set('Lat', d.lat); set('Lon', d.lon); set('Señal zona', d.site_signal);
+    set('Sitios minería en cuerpo', d.mining_locations_on_body); set('Tipo planeta', d.planet_class);
+    set('Gravedad (g)', d.gravity_g); set('Temp (K)', d.temp_k); set('Zona', d.zone);
+    set('Visitas', 0); set('Recogidas', 0); set('Toneladas totales', 0); set('Terreno zona', 'sin datos');
+    set('Última visita', d.time); set('Último CMDR', d.cmdr);
+    sh.appendRow(row);
+    created = true;
+    if (d.body) handleBody_({ system: d.system, body: d.body, planet_class: d.planet_class, gravity_g: d.gravity_g,
+                              temp_k: d.temp_k, radius_m: d.planet_radius_m, mining_locations: d.mining_locations_on_body,
+                              cmdr: d.cmdr, volcanism: d.volcanism });
+  }
+  var sh2 = sheet_('Sitios'), H2 = HEADERS['Sitios'], r = findRow_('Sitios', 1, siteId);
+  if (d.rigs) {
+    var c = H2.indexOf('Taladros marcados') + 1, old = Number(sh2.getRange(r, c).getValue()) || 0;
+    if (d.rigs > old) sh2.getRange(r, c).setValue(d.rigs);
+  }
+  if (d.zone !== null && d.zone !== undefined && d.zone !== '') {
+    var cz = H2.indexOf('Zona') + 1;
+    if (sh2.getRange(r, cz).getValue() === '') sh2.getRange(r, cz).setValue(d.zone);
+  }
+  recomputeSite_(siteId, prices);
+  // Densidad y cantidad, como si se hubieran pulsado los botones (historial en Estados)
+  var base = { time: d.time, cmdr: d.cmdr, system: d.system, body: d.body, zone: d.zone, lat: d.lat, lon: d.lon,
+               type: d.type, planet_radius_m: d.planet_radius_m, session_tonnes: d.session_tonnes };
+  if (MARK_DENSITY[d.density]) handleState_(Object.assign({}, base, { state: MARK_DENSITY[d.density] }));
+  if (MARK_AMOUNT[d.amount]) handleState_(Object.assign({}, base, { state: MARK_AMOUNT[d.amount] }));
+  if (d.zone !== null && d.zone !== undefined && d.zone !== '') upsertZone_(d.system, d.body, d.zone);
+  recomputeNearest_(d.system, d.body, d.planet_radius_m);
+  if (created) {
+    try {
+      var cfg = discordConfig_(), row2 = siteRow_(siteId);
+      if (cfg.url && cfg.mode !== 'no' && row2) {
+        sendDiscord_({ embeds: [siteEmbed_('📌 Sitio marcado: ' + row2['Mineral'] + ' (' + credits_(row2['Precio (Cr)']) + '/t)',
+                                           0xb28dff, row2, d.cmdr)] });
+      }
+    } catch (err) { Logger.log('Discord: ' + err); logDiscord_('ERROR', d.system + ' · ' + d.body, String(err)); }
   }
 }
 
@@ -761,16 +822,19 @@ function handleBody_(d) {
   var values = sh.getDataRange().getValues();
   var row = [d.system, d.body, d.planet_class || '', d.gravity_g || '', d.temp_k || '', d.radius_m || '',
              d.atmosphere || '', d.dist_ls || '', nz_(d.mining_locations), d.signals ? JSON.stringify(d.signals) : '',
-             new Date(), d.cmdr || '', volcanismText_(d.volcanism)];
+             new Date(), d.cmdr || ''];
+  var cV = values[0].indexOf('Vulcanismo') + 1, volc = volcanismText_(d.volcanism);
   for (var i = 1; i < values.length; i++) {
     if (values[i][0] === d.system && values[i][1] === d.body) {
       // no pisar datos buenos con vacíos
       for (var c = 0; c < row.length; c++) if (row[c] === '' || row[c] === null) row[c] = values[i][c];
       sh.getRange(i + 1, 1, 1, row.length).setValues([row]);
+      if (cV && volc) sh.getRange(i + 1, cV).setValue(volc);
       return;
     }
   }
   sh.appendRow(row);
+  if (cV && volc) sh.getRange(sh.getLastRow(), cV).setValue(volc);
 }
 
 function handleEvent_(d) {

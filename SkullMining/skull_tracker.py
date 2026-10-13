@@ -16,7 +16,7 @@ from typing import Callable, Dict, List, Optional
 
 import skull_analysis as analysis
 
-PLUGIN_VERSION = "0.5.3"
+PLUGIN_VERSION = "0.6.0"
 
 # Bits de Flags / Flags2 del Status.json
 FLAG_HAS_LATLONG = 1 << 21
@@ -92,6 +92,24 @@ KNOWN_SURFACE_TYPES = {
     "tantalum", "thorium", "uranium", "titanium", "uraninite", "methanolmonohydratecrystals",
     "hematite", "lithium", "copper", "water",
 }
+
+
+# Minerales de superficie para el formulario (nombre interno, nombre en español), de más a menos caro
+MINERALS = [
+    ("monazite", "Monacita"), ("alexandrite", "Alejandrita"), ("grandidierite", "Grandidierita"), ("iridium", "Iridio"),
+    ("periclasedunite", "Dunita de periclasa"), ("thortveitite", "Thortveitita"), ("serendibite", "Serendibita"),
+    ("rhodplumsite", "Rhodplumsita"), ("diamond", "Diamante"), ("lowtemperaturediamond", "Diamantes de baja temp."),
+    ("sapphire", "Zafiro"), ("ruby", "Rubí"), ("helium", "Helio"), ("helium3", "Helio-3"), ("bastnasite", "Bastnasita"),
+    ("platinum", "Platino"), ("osmium", "Osmio"), ("tritium", "Tritio"), ("palladium", "Paladio"), ("gold", "Oro"),
+    ("quartzpyroxenite", "Piroxenita de cuarzo"), ("jadeite", "Jadeíta"), ("deuterium", "Deuterio"),
+    ("magnesite", "Magnesita"), ("silver", "Plata"), ("olivine", "Olivino"), ("samarium", "Samario"),
+    ("tantalum", "Tantalio"), ("thorium", "Torio"), ("uranium", "Uranio"), ("titanium", "Titanio"),
+    ("uraninite", "Uraninita"), ("methanolmonohydratecrystals", "Cristales de metanol"), ("hematite", "Hematita"),
+    ("lithium", "Litio"), ("copper", "Cobre"), ("water", "Agua"),
+]
+AMOUNTS = ("Alta", "Media", "Baja", "Agotado")   # "Mineral amount" del escáner
+DENSITIES = ("Alta", "Media", "Baja")              # "Density" del escáner
+SUGGEST_EVERY_S = 8.0
 
 
 def parse_ts(ts: Optional[str]) -> float:
@@ -331,6 +349,63 @@ class Tracker:
             return None
         return self.zone_at(s.get("body"), s.get("lat"), s.get("lon"), s.get("radius") or 0)
 
+    # ------------------------------------------------------ formulario de sitio
+    def suggest(self) -> dict:
+        """Valores para rellenar el formulario: zona actual y, si hay minería cerca, mineral y taladros."""
+        s = self.status
+        out = {"zone": self.current_zone(), "type": None, "rigs": None}
+        if not s.get("has_ll") or not self.session or self.session.body != s.get("body") or not self.session.planet_radius:
+            return out
+        now = time.time()
+        cache = getattr(self, "_suggest_cache", None)
+        if cache and now - cache[0] < SUGGEST_EVERY_S:
+            sites = cache[1]
+        else:
+            R = self.session.planet_radius
+            try:
+                sites = analysis.group_sites(analysis.cluster_rigs(self.session.refined, R), R)
+            except Exception:
+                sites = []
+            self._suggest_cache = (now, sites)
+        best, best_d = None, None
+        for site in sites:
+            d = analysis.haversine_m(s["lat"], s["lon"], site["lat"], site["lon"], self.session.planet_radius)
+            if d <= analysis.SITE_LINK_M and (best_d is None or d < best_d):
+                best, best_d = site, d
+        if best:
+            out["type"], out["rigs"] = best["main_type"], best["rigs"]
+        return out
+
+    def mark_site(self, zone, rigs, mineral: Optional[str], amount: Optional[str], density: Optional[str]) -> str:
+        """Formulario "Enviar a web Skullmining": guarda el sitio donde estás con lo que dice el escáner."""
+        s = self.status
+        if not s.get("has_ll") or not (s.get("in_srv") or s.get("on_foot") or s.get("landed")):
+            return "Para enviar el sitio tienes que estar en la superficie"
+        if not mineral:
+            return "Elige el mineral del sitio"
+        if amount and amount not in AMOUNTS or density and density not in DENSITIES:
+            return "Valor no válido"
+        lat, lon, body = s["lat"], s["lon"], s.get("body")
+        R = s.get("radius") or 0.0
+        session_tonnes = 0
+        if self.session and self.session.body == body and R:
+            session_tonnes = sum(1 for r in self.session.refined if r["type"] == mineral and r.get("lat") is not None
+                                 and analysis.haversine_m(lat, lon, r["lat"], r["lon"], R) <= analysis.SITE_LINK_M)
+        info = self.bodies.get(body or "", {})
+        t = s.get("t") or time.time()
+        rec = {"time": iso(t), "cmdr": self.cmdr, "system": self.system.get("name"), "body": body,
+               "zone": zone if zone else self.current_zone(), "lat": lat, "lon": lon,
+               "planet_radius_m": R, "type": mineral, "rigs": int(rigs) if rigs else None,
+               "amount": amount or None, "density": density or None, "session_tonnes": session_tonnes,
+               "planet_class": info.get("planet_class"), "gravity_g": info.get("gravity_g"), "temp_k": info.get("temp_k"),
+               "volcanism": info.get("volcanism"), "mining_locations_on_body": info.get("mining_locations"),
+               "site_signal": self.last_site_signal["index"] if self.last_site_signal and self.last_site_signal.get("body") == body else None}
+        if self.session:
+            self.session.events.append({"t": t, "event": "SitioMarcado", "type": mineral, "lat": lat, "lon": lon})
+        self.emit("mark", rec)
+        name = dict(MINERALS).get(mineral, mineral)
+        return f"Enviado a la web: {name}" + (f", {rigs} taladros" if rigs else "")
+
     def mark_state(self, state: str) -> str:
         """El jugador marca el estado del sitio donde está (alto, medio, bajo, agotado)."""
         state = state.lower()
@@ -405,6 +480,7 @@ class Tracker:
             "in_srv": bool(flags & FLAG_IN_SRV),
             "on_foot": bool(flags2 & FLAG2_ON_FOOT),
             "alt_avg": bool(flags & FLAG_ALT_FROM_AVG_RADIUS),
+            "landed": bool(flags & (1 << 1)),
         }
         s = self.status
         on_surface = s["in_srv"] or s["on_foot"] or bool(flags & (1 << 1))  # bit 1 = aterrizado
