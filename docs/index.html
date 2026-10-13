@@ -71,7 +71,7 @@
   .stat .k { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
   .stat .v { font-family: "Orbitron", sans-serif; font-size: 22px; font-weight: 600; color: #fff; margin-top: 2px; }
 
-  .controls { display: grid; grid-template-columns: minmax(0,1.6fr) repeat(6, minmax(0,1fr)); gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+  .controls { display: grid; grid-template-columns: minmax(0,1.5fr) repeat(7, minmax(0,1fr)); gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
   .controls label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
   .controls input, .controls select {
     background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
@@ -164,6 +164,7 @@
   .st-alta { background: #45d48322; color: var(--good); } .st-media { background: #ffcb4722; color: var(--warn); }
   .st-baja { background: #ff8a1f22; color: var(--accent); } .st-agotado { background: #ff5d5d22; color: var(--bad); }
   tr.depleted td, .card.depleted { opacity: .55; }
+  .ground { color: var(--muted); font-size: 12px; margin-top: 3px; line-height: 1.2; }
   .left { color: var(--cyan); font-size: 13px; white-space: nowrap; cursor: help; }
   .st-when { display: block; color: var(--muted); font-size: 12px; }
   .zone { color: var(--cyan); font-weight: 600; }
@@ -265,6 +266,9 @@
         <option value="">Cualquiera</option><option value="llano">Llano</option>
         <option value="ondulado">Ondulado</option><option value="montañoso">Montañoso</option>
       </select>
+    </label>
+    <label>Suelo
+      <select id="groundF"><option value="">Cualquiera</option></select>
     </label>
     <label>Densidad
       <select id="densityF">
@@ -489,6 +493,30 @@
     loadJsonp(state.api, "view=sell&mineral=" + encodeURIComponent(enName(btn.dataset.type, btn.dataset.mineral)) +
       "&system=" + encodeURIComponent(btn.dataset.system)).then(done, function () { done({ ok: false }); });
   }
+  // Tipo de suelo: clase de planeta + vulcanismo (en los rocosos el vulcanismo cambia qué minerales salen)
+  function groundLabel(s) {
+    var pc = String(s.planetClass || "").toLowerCase(), v = String(s.volcanism || "").toLowerCase();
+    if (!pc) return "";
+    if (pc.indexOf("metal rich") === 0 || pc.indexOf("metal-rich") === 0) return "Rico en metal";
+    if (pc.indexOf("high metal") === 0) return "Alto contenido metálico";
+    if (pc.indexOf("rocky ice") === 0) return "Roca y hielo";
+    if (pc.indexOf("icy") === 0) return "Helado";
+    if (pc.indexOf("rocky") !== 0) return s.planetClass;
+    if (!v) return "Rocoso";
+    if (v === "ninguno") return "Rocoso · sin vulcanismo";
+    if (v.indexOf("silicate magma") >= 0) return "Rocoso · magma de silicatos";
+    if (v.indexOf("silicate vapour") >= 0) return "Rocoso · géiseres de silicatos";
+    if (v.indexOf("metallic") >= 0) return "Rocoso · magma metálico";
+    if (v.indexOf("rocky") >= 0) return "Rocoso · magma rocoso";
+    return "Rocoso · otro vulcanismo";
+  }
+  function fillGrounds() {
+    var sel = $("groundF"), seen = {};
+    state.sites.forEach(function (s) { var g = groundLabel(s); if (g) seen[g] = (seen[g] || 0) + 1; });
+    Object.keys(seen).sort(function (a, b) { return a.localeCompare(b, "es"); }).forEach(function (g) {
+      var o = document.createElement("option"); o.value = g; o.textContent = g + " (" + seen[g] + ")"; sel.appendChild(o);
+    });
+  }
   function meters(v) {
     if (v == null || v === "") return "—";
     v = Number(v);
@@ -595,11 +623,12 @@
     var mineral = $("mineral").value;
     var minRigs = Number($("minRigs").value);
     var terrain = $("terrain").value;
-    var dF = $("densityF").value, agF = $("depletedF").value;
+    var dF = $("densityF").value, agF = $("depletedF").value, gF = $("groundF").value;
     var zf = state.zoneFilter;
     var sort = $("sort").value;
     var list = state.sites.filter(function (s) {
       if (zf && (s.body !== zf.body || String(s.zone) !== String(zf.zone))) return false;
+      if (gF && groundLabel(s) !== gF) return false;
       if (agF === "hide" && s.depleted) return false;
       if (agF === "only" && !s.depleted) return false;
       if (dF === "none" && s.density) return false;
@@ -651,7 +680,7 @@
         '<td class="loc"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(shortBody(s)) +
           " · " + zoneLabel(s) + '</div><span class="coords">' + coords(s) + "</span>" + coordTools(s) +
           (s.nearest ? ' <span class="price">· otro sitio a ' + meters(s.nearest) + "</span>" : "") + "</td>" +
-        "<td>" + terrainBadge(s.terrain) + "</td>" +
+        "<td>" + terrainBadge(s.terrain) + (groundLabel(s) ? '<div class="ground">' + esc(groundLabel(s)) + "</div>" : "") + "</td>" +
         "<td>" + visit + "</td></tr>"
       );
       cards.push(
@@ -665,7 +694,7 @@
         '<div title="' + esc(leftTitle(s)) + '"><div class="k">Queda</div>' + esc(tonsLeftText(s, true).replace("quedan ", "")) + "</div>" +
         '<div style="grid-column:1/-1"><div class="k">Coordenadas</div><span class="coords">' + coords(s) + "</span>" + coordTools(s) + "</div>" +
         '<div><div class="k">Más cercano</div>' + meters(s.nearest) + "</div>" +
-        '<div><div class="k">Terreno</div>' + terrainBadge(s.terrain) + "</div>" +
+        '<div><div class="k">Terreno</div>' + terrainBadge(s.terrain) + (groundLabel(s) ? '<div class="ground">' + esc(groundLabel(s)) + "</div>" : "") + "</div>" +
         '<div><div class="k">Última visita</div>' + visit + "</div>" +
         "</div></article>"
       );
@@ -755,6 +784,7 @@
     renderTop10();
     renderZones();
     fillMinerals();
+    fillGrounds();
     render();
     if (data && data.updated) {
       $("updated").innerHTML = "Actualizado <b>" + new Date(data.updated).toLocaleString("es-ES") + "</b>";
@@ -779,7 +809,7 @@
     var api = (window.SKULL_API_URL || "").trim();
     var useDemo = params.has("demo") || !api;
     state.api = api; state.demo = useDemo;
-    ["q", "mineral", "minRigs", "terrain", "densityF", "depletedF", "sort"].forEach(function (id) {
+    ["q", "mineral", "minRigs", "terrain", "groundF", "densityF", "depletedF", "sort"].forEach(function (id) {
       $(id).addEventListener(id === "q" ? "input" : "change", render);
     });
     // Logo y título: recarga la página saltándose la caché del navegador (como Ctrl+F5),

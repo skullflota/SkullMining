@@ -15,7 +15,7 @@
 var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 taladros a 103 m en la misma mancha (28-sep)
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '8';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '9';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
 // Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
 // el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
@@ -48,7 +48,7 @@ var HEADERS = {
   // Datos en bruto de cada tonelada (plugin 0.5.0+). Las partes se concatenan en orden.
   'Recogidas': ['SessionID', 'Inicio (epoch s)', 'Parte', 'Datos (décimas de s,tipo,lat,lon,zona;...)'],
   'Cuerpos': ['Sistema', 'Cuerpo', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Radio (m)', 'Atmósfera',
-              'Distancia (ls)', 'Sitios de minería', 'Señales', 'Actualizado', 'CMDR'],
+              'Distancia (ls)', 'Sitios de minería', 'Señales', 'Actualizado', 'CMDR', 'Vulcanismo'],
   'Ventas': ['Fecha', 'CMDR', 'Tipo', 'Nombre', 'Cantidad', 'Precio venta', 'Total', 'Sistema', 'MarketID'],
   'Eventos': ['Fecha', 'CMDR', 'Evento', 'Sistema', 'Cuerpo', 'Lat', 'Lon', 'JSON'],
   'Precios': ['Tipo (interno)', 'Nombre ES', 'Nombre EN', 'Precio medio (Cr)', 'Interno verificado'],
@@ -228,6 +228,19 @@ function publicRanking_(callback) {
     });
     return o;
   });
+  // Vulcanismo de cada cuerpo (pestaña Cuerpos), para el tipo de suelo en la web
+  var volc = {};
+  var cv = sheet_('Cuerpos').getDataRange().getValues();
+  var cvi = cv[0].indexOf('Vulcanismo'), cpi = cv[0].indexOf('Tipo planeta');
+  cv.slice(1).forEach(function (r) {
+    volc[r[0] + '|' + r[1]] = { v: cvi >= 0 ? String(r[cvi] || '') : '', pc: cpi >= 0 ? String(r[cpi] || '') : '' };
+  });
+  sites.forEach(function (o) {
+    var b = volc[o.system + '|' + o.body];
+    if (!b) return;
+    o.volcanism = b.v || null;
+    if (!o.planetClass && b.pc) o.planetClass = b.pc;
+  });
   var ses = sheet_('Sesiones').getDataRange().getValues().slice(1);
   var cmdrs = {};
   var tonnes = 0;
@@ -334,7 +347,8 @@ function handleSession_(d) {
   }
   if (d.body) handleBody_({ system: d.system, body: d.body, planet_class: d.planet_class, gravity_g: d.gravity_g,
                             temp_k: d.temp_k, radius_m: d.planet_radius_m, atmosphere: d.atmosphere,
-                            mining_locations: d.mining_locations_on_body, cmdr: d.cmdr });
+                            mining_locations: d.mining_locations_on_body, cmdr: d.cmdr, volcanism: d.volcanism });
+  if (d.body) { try { fillBodyFromSpansh_(d.system, d.body, false); } catch (err) { Logger.log('Spansh cuerpo: ' + err); } }
   ids.forEach(function (id) { recomputeSite_(id, prices); });
   recomputeNearest_(d.system, d.body, d.planet_radius_m);
   recomputeZones_(d.system, d.body);
@@ -744,7 +758,7 @@ function handleBody_(d) {
   var values = sh.getDataRange().getValues();
   var row = [d.system, d.body, d.planet_class || '', d.gravity_g || '', d.temp_k || '', d.radius_m || '',
              d.atmosphere || '', d.dist_ls || '', nz_(d.mining_locations), d.signals ? JSON.stringify(d.signals) : '',
-             new Date(), d.cmdr || ''];
+             new Date(), d.cmdr || '', volcanismText_(d.volcanism)];
   for (var i = 1; i < values.length; i++) {
     if (values[i][0] === d.system && values[i][1] === d.body) {
       // no pisar datos buenos con vacíos
@@ -864,6 +878,62 @@ function spanshPost_(path, body) {
   });
   if (res.getResponseCode() !== 200) { Logger.log('Spansh ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 300)); return null; }
   try { return JSON.parse(res.getContentText()); } catch (e) { return null; }
+}
+
+// ------------------------------------------------------------- vulcanismo (Spansh)
+// "No volcanism" → "ninguno"; el resto en minúsculas tal cual (p. ej. "major rocky magma volcanism").
+function volcanismText_(v) {
+  v = String(v || '').trim().toLowerCase();
+  if (!v) return '';
+  if (v === 'no volcanism' || v === 'none' || v === 'ninguno') return 'ninguno';
+  return v.indexOf('volcanism') >= 0 ? v : v + ' volcanism';
+}
+
+// Rellena vulcanismo (y tipo de planeta si falta) de un cuerpo con los datos públicos de Spansh.
+// force=false: solo si la fila no lo tiene. Devuelve true si escribió algo.
+function fillBodyFromSpansh_(system, body, force) {
+  var sh = sheet_('Cuerpos');
+  var v = sh.getDataRange().getValues();
+  var H = v[0], cV = H.indexOf('Vulcanismo') + 1, cP = H.indexOf('Tipo planeta') + 1;
+  var row = -1;
+  for (var i = 1; i < v.length; i++) if (v[i][0] === system && v[i][1] === body) { row = i + 1; break; }
+  if (row < 0 || (!force && v[row - 1][cV - 1])) return false;
+  var bodies = spanshBodies_(system);
+  var b = bodies && bodies.filter(function (x) { return String(x.name).toLowerCase() === String(body).toLowerCase(); })[0];
+  if (!b) return false;
+  var volc = volcanismText_(b.volcanismType || 'No volcanism');
+  sh.getRange(row, cV).setValue(volc);
+  if (!v[row - 1][cP - 1] && b.subType) sh.getRange(row, cP).setValue(String(b.subType).replace(/ world$/, ' body'));
+  return true;
+}
+
+function spanshBodies_(system) {
+  var cache = CacheService.getScriptCache(), key = ('bodies|' + system).toLowerCase().slice(0, 240);
+  var hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var found = spanshPost_('/systems/search', { filters: { name: { value: system } }, size: 1, page: 0 });
+  var sys = found && found.results && found.results.filter(function (x) {
+    return String(x.name || '').toLowerCase() === String(system).toLowerCase(); })[0];
+  if (!sys || !sys.id64) return null;
+  var res = UrlFetchApp.fetch('https://spansh.co.uk/api/dump/' + sys.id64, { muteHttpExceptions: true,
+    headers: { 'User-Agent': 'SkullMining (Google Apps Script; github.com/skullflota/SkullMining)' } });
+  if (res.getResponseCode() !== 200) return null;
+  var dump = JSON.parse(res.getContentText());
+  var out = ((dump.system || {}).bodies || []).filter(function (x) { return x.type === 'Planet'; })
+    .map(function (x) { return { name: x.name, subType: x.subType || '', volcanismType: x.volcanismType || '' }; });
+  try { cache.put(key, JSON.stringify(out), 6 * 3600); } catch (e) { /* demasiado grande */ }
+  return out;
+}
+
+// Ejecutar a mano una vez: rellena el vulcanismo de todos los cuerpos que no lo tengan
+function rellenarVulcanismo() {
+  var v = sheet_('Cuerpos').getDataRange().getValues();
+  var n = 0, fail = [];
+  for (var i = 1; i < v.length; i++) {
+    if (!v[i][0] || !v[i][1]) continue;
+    try { if (fillBodyFromSpansh_(v[i][0], v[i][1], false)) n++; } catch (e) { fail.push(v[i][1]); }
+  }
+  Logger.log('Cuerpos actualizados: ' + n + (fail.length ? ' · sin datos: ' + fail.join(', ') : ''));
 }
 
 // Ejecutar a mano desde el editor para comprobar que Spansh responde
