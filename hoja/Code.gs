@@ -116,9 +116,12 @@ function ensureSchema_(force) {
       return;
     }
     var have = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0];
-    if (have.length < want.length) {
-      var extra = want.slice(have.length);
-      sh.getRange(1, have.length + 1, 1, extra.length).setValues([extra]).setFontWeight('bold').setBackground('#fff2cc');
+    // Añadir al final las columnas que falten, por nombre (no por número: la hoja puede tener columnas de más)
+    var extra = want.filter(function (h) { return have.indexOf(h) < 0; });
+    if (extra.length) {
+      var last = have.length;
+      while (last > 0 && have[last - 1] === '') last--;
+      sh.getRange(1, last + 1, 1, extra.length).setValues([extra]).setFontWeight('bold').setBackground('#fff2cc');
     }
   });
   if (migrateStates) recomputeAllStates_();
@@ -895,6 +898,7 @@ function fillBodyFromSpansh_(system, body, force) {
   var sh = sheet_('Cuerpos');
   var v = sh.getDataRange().getValues();
   var H = v[0], cV = H.indexOf('Vulcanismo') + 1, cP = H.indexOf('Tipo planeta') + 1;
+  if (!cV) { ensureSchema_(true); return fillBodyFromSpansh_(system, body, force); }
   var row = -1;
   for (var i = 1; i < v.length; i++) if (v[i][0] === system && v[i][1] === body) { row = i + 1; break; }
   if (row < 0 || (!force && v[row - 1][cV - 1])) return false;
