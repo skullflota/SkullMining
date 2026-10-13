@@ -931,9 +931,24 @@ function rellenarVulcanismo() {
   var n = 0, fail = [];
   for (var i = 1; i < v.length; i++) {
     if (!v[i][0] || !v[i][1]) continue;
-    try { if (fillBodyFromSpansh_(v[i][0], v[i][1], false)) n++; } catch (e) { fail.push(v[i][1]); }
+    try { if (fillBodyFromSpansh_(v[i][0], v[i][1], false)) n++; } catch (e) { fail.push(v[i][1] + ' (' + e + ')'); }
   }
-  Logger.log('Cuerpos actualizados: ' + n + (fail.length ? ' · sin datos: ' + fail.join(', ') : ''));
+  Logger.log('Cuerpos actualizados: ' + n + (fail.length ? ' · errores: ' + fail.slice(0, 5).join(' | ') : ''));
+}
+
+// Diagnóstico paso a paso con un cuerpo conocido
+function probarVulcanismo() {
+  var system = 'Pegasi Sector JN-S b4-7', body = 'Pegasi Sector JN-S b4-7 B 4 a';
+  var found = spanshPost_('/systems/search', { filters: { name: { value: system } }, size: 1, page: 0 });
+  Logger.log('1) búsqueda de sistema: ' + JSON.stringify(found && found.results && found.results.slice(0, 1)).slice(0, 600));
+  var sys = found && found.results && found.results[0];
+  if (!sys) return;
+  var res = UrlFetchApp.fetch('https://spansh.co.uk/api/dump/' + sys.id64, { muteHttpExceptions: true });
+  Logger.log('2) dump: código ' + res.getResponseCode() + ', ' + res.getContentText().length + ' caracteres');
+  var dump = JSON.parse(res.getContentText());
+  var b = ((dump.system || {}).bodies || []).filter(function (x) { return x.name === body; })[0];
+  Logger.log('3) cuerpo: ' + JSON.stringify(b ? { name: b.name, type: b.type, subType: b.subType, volcanismType: b.volcanismType } : null));
+  Logger.log('4) claves del cuerpo: ' + (b ? Object.keys(b).join(', ') : '-'));
 }
 
 // Ejecutar a mano desde el editor para comprobar que Spansh responde
