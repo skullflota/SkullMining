@@ -15,7 +15,7 @@
 var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 taladros a 103 m en la misma mancha (28-sep)
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '11';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '12';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
 // Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
 // el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
@@ -31,7 +31,7 @@ var HEADERS = {
              'Sitios minería en cuerpo', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Última visita', 'Último CMDR',
              'Zona', 'Densidad', 'Densidad fecha', 'Densidad CMDR', 'Agotado', 'Agotado CMDR',
              'Cantidad', 'Cantidad fecha', 'Cantidad CMDR', 'Cantidad t flota', 'Taladros marcados',
-             'Agotado desde', 'Regenerado', 'Regenerado CMDR', 'Creado', 'Cr/h'],
+             'Agotado desde', 'Regenerado', 'Regenerado CMDR', 'Creado', 'Cr/h', 'Descubierto por'],
   'Visitas': ['SessionID', 'SiteID', 'Fecha', 'CMDR', 'Mineral', 'Taladros', 'Dist. mín entre taladros (m)',
               'Extensión (m)', 'Recogidas', 'Toneladas', 'T/recogida', 'Terreno zona', 'Vel. efectiva zona (m/s)',
               'Zona'],
@@ -294,7 +294,18 @@ function publicRanking_(callback) {
     var m = Math.floor(v.length / 2);
     return v.length % 2 ? v[m] : round_((v[m - 1] + v[m]) / 2, 1);
   };
-  var out = { ok: true, updated: new Date().toISOString(), sites: sites, zones: zones, names: names, sales: sales,
+  // Comandantes que más sitios han descubierto (nombre sin "CMDR " delante; cada sitio cuenta una vez)
+  var di = head.indexOf('Descubierto por'), by = {};
+  values.forEach(function (r) {
+    if (!r[0] || di < 0) return;
+    var raw = String(r[di] || '').replace(/^\s*cmdr\s+/i, '').trim();
+    if (!raw) return;
+    var k = raw.toLowerCase();
+    (by[k] = by[k] || { name: raw, sites: 0 }).sites++;
+  });
+  var cmdrList = Object.keys(by).map(function (k) { return by[k]; })
+    .sort(function (a, b) { return b.sites - a.sites || a.name.localeCompare(b.name); }).slice(0, 20);
+  var out = { ok: true, updated: new Date().toISOString(), sites: sites, zones: zones, names: names, sales: sales, cmdrs: cmdrList,
               regen: { n: maxs.length, minDays: med(mins), maxDays: med(maxs) },
               stats: { sites: sites.length, sessions: ses.length, commanders: Object.keys(cmdrs).length, tonnes: tonnes } };
   var txt = JSON.stringify(out);
@@ -418,7 +429,7 @@ function assignSite_(d, st, esName, prices) {
   set('Mineral', esName[st.main_type] || st.main_type); set('Nombre interno', st.main_type);
   set('Lat', st.lat); set('Lon', st.lon); set('Señal zona', d.site_signal);
   set('Sitios minería en cuerpo', d.mining_locations_on_body); set('Tipo planeta', d.planet_class);
-  set('Gravedad (g)', d.gravity_g); set('Temp (K)', d.temp_k); set('Zona', st.zone); set('Creado', new Date());
+  set('Gravedad (g)', d.gravity_g); set('Temp (K)', d.temp_k); set('Zona', st.zone); set('Creado', new Date()); set('Descubierto por', d.cmdr);
   sh.appendRow(row);
   applyPendingStates_(id, d.system, d.body, st.main_type, st.lat, st.lon, d.planet_radius_m);
   return id;
@@ -475,6 +486,11 @@ function recomputeSite_(siteId, prices) {
     var firstV = rows.length ? rows.map(function (x) { return timeOf_(x[vc('Fecha')]); }).filter(Boolean).sort()[0] : 0;
     var lastV = timeOf_(cur[H.indexOf('Última visita')]);
     set('Creado', new Date(firstV || lastV || Date.now()));
+  }
+  // Descubierto por: quien lo minó primero; si solo está marcado, quien lo marcó
+  if (!cur[H.indexOf('Descubierto por')]) {
+    var firstRow = rows.slice().sort(function (a, b) { return timeOf_(a[vc('Fecha')]) - timeOf_(b[vc('Fecha')]); })[0];
+    set('Descubierto por', firstRow ? firstRow[vc('CMDR')] : cur[H.indexOf('Último CMDR')]);
   }
   if (!rows.length) { sh.getRange(r, 1, 1, H.length).setValues([cur]); return; }
   set('Recogidas', sum(vals('Recogidas')));
@@ -568,7 +584,7 @@ function handleMark_(d) {
     set('Sitios minería en cuerpo', d.mining_locations_on_body); set('Tipo planeta', d.planet_class);
     set('Gravedad (g)', d.gravity_g); set('Temp (K)', d.temp_k); set('Zona', d.zone);
     set('Visitas', 0); set('Recogidas', 0); set('Toneladas totales', 0); set('Terreno zona', 'sin datos');
-    set('Última visita', d.time); set('Último CMDR', d.cmdr); set('Creado', new Date());
+    set('Última visita', d.time); set('Último CMDR', d.cmdr); set('Creado', new Date()); set('Descubierto por', d.cmdr);
     sh.appendRow(row);
     created = true;
     if (d.body) handleBody_({ system: d.system, body: d.body, planet_class: d.planet_class, gravity_g: d.gravity_g,

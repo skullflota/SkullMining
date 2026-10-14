@@ -397,5 +397,31 @@
   "n": 2,
   "minDays": 3.5,
   "maxDays": 9
- }
+ },
+ "cmdrs": [
+  {
+   "name": "Comandante Ejemplo",
+   "sites": 42
+  },
+  {
+   "name": "Piloto de Prueba",
+   "sites": 27
+  },
+  {
+   "name": "Rhino Demo",
+   "sites": 19
+  },
+  {
+   "name": "Minero Uno",
+   "sites": 8
+  },
+  {
+   "name": "Minero Dos",
+   "sites": 3
+  },
+  {
+   "name": "Novato",
+   "sites": 1
+  }
+ ]
 }

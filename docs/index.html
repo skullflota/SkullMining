@@ -71,6 +71,10 @@
   .top10.latest li { grid-template-columns: 90px minmax(120px, 1fr) minmax(0, 2fr) minmax(150px, 1.2fr); }
   .latest .ev { color: var(--text); font-size: 14px; }
   .latest .when { color: var(--muted); font-size: 14px; }
+  .top10.cmdrs li { grid-template-columns: 34px minmax(120px, 1fr) 90px minmax(80px, 2fr); }
+  .cmdrs .bar { height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
+  .cmdrs .bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+  .cmdrs .n { text-align: right; font-family: "Orbitron", sans-serif; font-size: 14px; white-space: nowrap; }
   .topnote { color: var(--muted); font-size: 14px; margin: 0 0 8px; }
   .homefoot { text-align: center; margin: 4px 0 18px; }
   .stats { margin-top: 26px; }
@@ -223,6 +227,8 @@
     .sellbox table { display: table; }
     .cards { display: block; }
     .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .top10.cmdrs li { grid-template-columns: 28px minmax(0, 1fr) auto; }
+    .top10.cmdrs li .bar { grid-column: 2 / -1; }
     .top10.latest li { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
     .top10.latest li .where, .top10.latest li .ev { grid-column: 1 / -1; }
     .top10 li { grid-template-columns: 28px minmax(0, 1fr) auto; row-gap: 2px; }
@@ -354,6 +360,11 @@
     <section class="top10 latest" id="latest" aria-label="Últimos sitios" hidden>
       <h2>ÚLTIMOS SITIOS AÑADIDOS O ACTUALIZADOS</h2>
       <ol id="latestlist"></ol>
+    </section>
+
+    <section class="top10 cmdrs" id="cmdrs" aria-label="Comandantes que más aportan" hidden>
+      <h2>COMANDANTES QUE MÁS APORTAN<span>sitios descubiertos: el primero en minarlo o marcarlo se lleva el sitio</span></h2>
+      <ol id="cmdrlist"></ol>
     </section>
 
     <div class="homefoot"><button type="button" class="showall" id="showAll">Ver todos los sitios</button></div>
@@ -916,7 +927,18 @@
           " " + esc(shortBody(s)) + " · " + zoneLabel(s) + " · " + ago(s.regenerated).text + "</li>";
       }).join("") + (list.length > 4 ? '<li class="muted">y ' + (list.length - 4) + " más</li>" : "") + "</ul></div>";
   }
-  function renderHome() { renderTop10(); renderMarked(); renderLatest(); }
+  // Comandantes que más sitios han descubierto (viene ya contado de la hoja, sin datos por sitio)
+  function renderCmdrs() {
+    var list = (state.cmdrs || []).slice(0, 10);
+    $("cmdrs").hidden = !list.length;
+    var max = list.reduce(function (a, c) { return Math.max(a, Number(c.sites) || 0); }, 1);
+    $("cmdrlist").innerHTML = list.map(function (c, i) {
+      return '<li class="r' + (i + 1) + '"><span class="pos">' + (i + 1) + '</span><span class="m">' + esc(c.name) + '</span>' +
+        '<span class="n">' + nf.format(c.sites) + (Number(c.sites) === 1 ? " sitio" : " sitios") + '</span>' +
+        '<span class="bar" aria-hidden="true"><i style="width:' + Math.max(4, Math.round(100 * c.sites / max)) + '%"></i></span></li>';
+    }).join("");
+  }
+  function renderHome() { renderTop10(); renderMarked(); renderLatest(); renderCmdrs(); }
   window.addEventListener("resize", function () { if (state.sites.length) renderHome(); });
 
   function renderZones() {
@@ -974,6 +996,7 @@
     state.sales = (data && data.sales) || {};
     state.stats = data && data.stats;
     state.regen = (data && data.regen) || null;
+    state.cmdrs = (data && data.cmdrs) || [];
     renderStats();
     renderRegenNotice();
     renderHome();
