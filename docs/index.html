@@ -288,7 +288,7 @@
 
   <section class="login" id="login" aria-label="Entrar" hidden>
     <h2>ACCESO FLOTA SKULL</h2>
-    <p>Solo para miembros de la flota. Entra con tu nombre de comandante y la <b>clave de la flota</b>, la misma que pusiste en los ajustes del plugin Skull Mining en EDMC.</p>
+    <p>Solo para miembros de la flota. Lo más fácil: pulsa <b>Ir a web Skullmining</b> en el plugin de EDMC (versión 0.7.0 o posterior) y entrarás directamente. Si no, escribe tu nombre de comandante y la <b>clave de la flota</b>, la misma que pusiste en los ajustes del plugin.</p>
     <form id="loginForm" autocomplete="on">
       <label>Nombre de comandante
         <input id="lgCmdr" name="username" autocomplete="username" required placeholder="Ej.: Tito Txarli"></label>
@@ -1141,7 +1141,15 @@
     $("logout").addEventListener("click", function () {
       storeAuth(null); state.auth = null; $("lgKey").value = ""; showLogin("");
     });
-    state.auth = readAuth();
+    // Botón "Ir a web Skullmining" del plugin (v0.7.0+): trae CMDR y clave detrás de '#' y entra sin preguntar.
+    // Se borran de la barra de direcciones al momento; si son buenos quedan guardados como en el formulario.
+    var h = new URLSearchParams(location.hash.slice(1));
+    if (h.get("cmdr") && h.get("key")) {
+      state.auth = { cmdr: h.get("cmdr").replace(/^\s*cmdr\s+/i, "").trim(), key: h.get("key").trim() };
+      try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { location.hash = ""; }
+    } else {
+      state.auth = readAuth();
+    }
     if (!state.auth) { showLogin(""); return; }
     loadLive(false);
   }

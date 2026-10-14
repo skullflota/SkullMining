@@ -11,6 +11,7 @@ import os
 import sys
 import time
 import tkinter as tk
+import urllib.parse
 import webbrowser
 from typing import Optional
 
@@ -147,7 +148,42 @@ def _build_form(frame: tk.Frame) -> None:
     btns = tk.Frame(f)
     btns.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=(3, 0))
     tk.Button(btns, text="Enviar a web Skullmining", command=_send_form).pack(side=tk.LEFT)
-    tk.Button(btns, text="Ir a web Skullmining", command=lambda: webbrowser.open(WEB_URL)).pack(side=tk.LEFT, padx=(6, 0))
+    tk.Button(btns, text="Ir a web Skullmining", command=_open_web).pack(side=tk.LEFT, padx=(6, 0))
+
+
+def _current_cmdr() -> str:
+    """Nombre del comandante tal como sale en el juego (no el alias): es lo que se compara con la lista de la flota."""
+    c = getattr(S.tracker, "cmdr", None) if S.tracker is not None else None
+    if not c:
+        try:
+            from monitor import monitor  # type: ignore  (lo proporciona EDMC)
+            c = monitor.cmdr
+        except Exception:
+            c = None
+    if not c:
+        try:
+            cmdrs = config.get_list("cmdrs") or []
+            c = cmdrs[-1] if cmdrs else None
+        except Exception:
+            c = None
+    return str(c or "").strip()
+
+
+def web_login_url(base: str, cmdr: str, key: str) -> str:
+    """Enlace a la web que entra directamente. Los datos van detrás de '#': el navegador no los envía a GitHub
+    y la web los borra de la barra de direcciones nada más leerlos."""
+    if not cmdr or not key:
+        return base
+    return base + "#" + urllib.parse.urlencode({"cmdr": cmdr, "key": key}, quote_via=urllib.parse.quote)
+
+
+def _open_web() -> None:
+    cmdr, key = _current_cmdr(), _cfg(CFG_TOKEN).strip()
+    if not key:
+        _set_net_status("Web: falta la clave de la flota en Ajustes")
+    elif not cmdr:
+        _set_net_status("Web: abre el juego una vez para saber tu CMDR")
+    webbrowser.open(web_login_url(WEB_URL, cmdr, key))
 
 
 def _fill_form() -> None:
