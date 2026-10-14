@@ -199,9 +199,13 @@ function doPost(e) {
 // Lectura de sitios para el futuro visor: ?token=...&sheet=Sitios
 function doGet(e) {
   var p = (e && e.parameter) || {};
-  // Lectura pública para la web del ranking: solo sitios, sin nombres de comandante
-  if (p.view === 'ranking') { ensureSchema_(false); return publicRanking_(p.callback); }
-  if (p.view === 'sell') return jsonp_(sellPlaces_(p.mineral, p.system), p.callback);
+  // Lectura para la web: solo miembros de la flota (CMDR de la lista + clave de la flota)
+  if (p.view === 'ranking' || p.view === 'sell') {
+    var acc = checkAccess_(p.cmdr, p.key);
+    if (!acc.ok) return jsonp_(acc, p.callback);
+    if (p.view === 'sell') return jsonp_(sellPlaces_(p.mineral, p.system), p.callback);
+    ensureSchema_(false); return publicRanking_(p.callback);
+  }
   var token = PropertiesService.getScriptProperties().getProperty('FLEET_TOKEN');
   if (!e || !e.parameter || e.parameter.token !== token) return json_({ ok: false, error: 'token' });
   var name = e.parameter.sheet || 'Sitios';
@@ -210,6 +214,60 @@ function doGet(e) {
   var head = values.shift();
   var rows = values.map(function (r) { var o = {}; head.forEach(function (h, i) { o[h] = r[i]; }); return o; });
   return json_({ ok: true, rows: rows });
+}
+
+// ---------------------------------------------------------------- acceso a la web
+// Lista de miembros: hoja de la flota, pestaña "Lista de miembros", columna "NOMBRE COMANDANTE".
+// Se puede cambiar con las propiedades del script MIEMBROS_HOJA_ID y MIEMBROS_PESTANA.
+var MEMBERS_SHEET_ID = '17Tm3ESKz-rh1XoR3pxdtooN0TlD-3HzvHJW6YJ_TLqY';
+var MEMBERS_TAB = 'Lista de miembros';
+
+function normCmdr_(s) {
+  s = String(s || '').replace(/^\s*cmdr\s+/i, '');
+  if (s.normalize) s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return s.replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function members_(fresh) {
+  var cache = CacheService.getScriptCache();
+  var hit = !fresh && cache.get('members_v1');
+  if (hit) return hit.split('\n');
+  var props = PropertiesService.getScriptProperties();
+  var ss = SpreadsheetApp.openById(props.getProperty('MIEMBROS_HOJA_ID') || MEMBERS_SHEET_ID);
+  var sh = ss.getSheetByName(props.getProperty('MIEMBROS_PESTANA') || MEMBERS_TAB);
+  if (!sh) throw new Error('No encuentro la pestaña de miembros');
+  var v = sh.getDataRange().getDisplayValues(), col = -1, row = -1;
+  for (var r = 0; r < Math.min(v.length, 15) && col < 0; r++) {
+    for (var c = 0; c < v[r].length; c++) {
+      if (normCmdr_(v[r][c]) === 'NOMBRE COMANDANTE') { col = c; row = r; break; }
+    }
+  }
+  if (col < 0) throw new Error('No encuentro la columna NOMBRE COMANDANTE');
+  var names = [];
+  for (var i = row + 1; i < v.length; i++) {
+    var n = normCmdr_(v[i][col]);
+    if (n && names.indexOf(n) < 0) names.push(n);
+  }
+  if (!names.length) throw new Error('La lista de miembros está vacía');
+  cache.put('members_v1', names.join('\n'), 600);   // 10 min: los cambios en la lista tardan eso en notarse
+  return names;
+}
+
+function checkAccess_(cmdr, key) {
+  var token = PropertiesService.getScriptProperties().getProperty('FLEET_TOKEN');
+  if (!token || String(key || '') !== token) return { ok: false, error: 'auth' };
+  var name = normCmdr_(cmdr);
+  if (!name) return { ok: false, error: 'auth' };
+  var list;
+  try { list = members_(); } catch (err) { return { ok: false, error: 'members', detail: String(err.message || err) }; }
+  if (list.indexOf(name) < 0) return { ok: false, error: 'member' };
+  return { ok: true };
+}
+
+// Ejecútala a mano desde el editor para comprobar que el script puede leer la lista (y dar permiso la primera vez)
+function probarListaMiembros() {
+  var names = members_(true);
+  Logger.log('Miembros leídos: ' + names.length + ' (primeros: ' + names.slice(0, 5).join(', ') + ')');
 }
 
 var PUBLIC_SITE_FIELDS = {

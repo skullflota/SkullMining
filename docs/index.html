@@ -110,6 +110,22 @@
   .controls input:focus, .controls select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
   .count { color: var(--muted); margin: 14px 2px 8px; font-size: 15px; }
 
+  body.locked .wrap > *:not(header):not(nav.links):not(#login) { display: none !important; }
+  body.locked #pricesBtn, body.locked #logout { display: none; }
+  .login { max-width: 440px; margin: 28px auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 20px; }
+  .login h2 { margin: 0 0 6px; font-family: "Orbitron", sans-serif; font-size: 16px; letter-spacing: .06em; color: var(--accent); }
+  .login p { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+  .login label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+  .login input { display: block; width: 100%; box-sizing: border-box; margin-top: 5px; padding: 10px 12px; font: inherit; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
+  .login input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  .login button[type=submit] { margin-top: 18px; width: 100%; padding: 11px; font: inherit; font-weight: 700; cursor: pointer;
+    background: var(--accent); color: #111; border: 0; border-radius: 8px; }
+  .login button[disabled] { opacity: .6; cursor: wait; }
+  .login .err { margin: 14px 0 0; color: #ffb3b3; font-size: 14px; }
+  .login .err:empty { display: none; }
+  .whoami { margin-left: auto; color: var(--muted); font-size: 13px; align-self: center; }
+  .whoami b { color: var(--text); font-weight: 600; }
   .notice { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); padding: 14px 16px; margin: 16px 0; }
   .notice.demo { border-color: var(--warn); color: var(--warn); }
   .notice.error { border-color: var(--bad); color: #ffb3b3; }
@@ -239,6 +255,7 @@
     .updated { text-align: left; }
   }
 </style>
+<meta name="robots" content="noindex, nofollow">
 </head>
 <body>
 <div class="wrap">
@@ -265,7 +282,22 @@
     <a class="pricesbtn" href="https://spansh.co.uk/" target="_blank" rel="noopener" title="Buscador de estaciones, sistemas y mercados">Spansh ↗</a>
     <a class="pricesbtn" href="https://github.com/njthomson/SrvSurvey" target="_blank" rel="noopener" title="Guía hasta las coordenadas de un sitio en la nave y en el Rhino">SrvSurvey ↗</a>
     <a class="pricesbtn" href="https://github.com/skullflota/SkullMining/releases" target="_blank" rel="noopener" title="Descargar el plugin de EDMC">Plugin Skull Mining ↗</a>
+    <span class="whoami" id="whoami" hidden></span>
+    <button type="button" class="pricesbtn" id="logout" hidden>Salir</button>
   </nav>
+
+  <section class="login" id="login" aria-label="Entrar" hidden>
+    <h2>ACCESO FLOTA SKULL</h2>
+    <p>Solo para miembros de la flota. Entra con tu nombre de comandante y la <b>clave de la flota</b>, la misma que pusiste en los ajustes del plugin Skull Mining en EDMC.</p>
+    <form id="loginForm" autocomplete="on">
+      <label>Nombre de comandante
+        <input id="lgCmdr" name="username" autocomplete="username" required placeholder="Ej.: Tito Txarli"></label>
+      <label>Clave de la flota
+        <input id="lgKey" name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit" id="lgBtn">Entrar</button>
+      <p class="err" id="lgErr" role="alert"></p>
+    </form>
+  </section>
 
   <section class="prices" id="prices" aria-label="Precios medios de los minerales" hidden>
     <h2>PRECIOS MEDIOS DE LOS MINERALES<span>de mayor a menor · orientativos</span>
@@ -1016,7 +1048,8 @@
       function cleanup() { clearTimeout(timer); delete window[cb]; s.remove(); }
       window[cb] = function (d) { cleanup(); resolve(d); };
       s.onerror = function () { cleanup(); reject(new Error("no se pudo cargar")); };
-      s.src = url + (url.indexOf("?") < 0 ? "?" : "&") + (query || "view=ranking") + "&callback=" + cb;
+      var auth = state.auth ? "&cmdr=" + encodeURIComponent(state.auth.cmdr) + "&key=" + encodeURIComponent(state.auth.key) : "";
+      s.src = url + (url.indexOf("?") < 0 ? "?" : "&") + (query || "view=ranking") + auth + "&callback=" + cb;
       document.head.appendChild(s);
     });
   }
@@ -1097,12 +1130,63 @@
         .catch(function () { setNotice("error", "No se pudieron cargar los datos de ejemplo."); });
       return;
     }
-    $("count").textContent = "Cargando sitios…";
-    loadJsonp(api).then(function (d) {
+    $("loginForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var cmdr = $("lgCmdr").value.replace(/^\s*cmdr\s+/i, "").trim(), key = $("lgKey").value.trim();
+      if (!cmdr || !key) return;
+      state.auth = { cmdr: cmdr, key: key };
+      $("lgBtn").disabled = true; $("lgBtn").textContent = "Comprobando…"; $("lgErr").textContent = "";
+      loadLive(true);
+    });
+    $("logout").addEventListener("click", function () {
+      storeAuth(null); state.auth = null; $("lgKey").value = ""; showLogin("");
+    });
+    state.auth = readAuth();
+    if (!state.auth) { showLogin(""); return; }
+    loadLive(false);
+  }
+
+  // ---- acceso: CMDR de la lista de la flota + clave de la flota (se comprueba en la hoja)
+  var AUTH_KEY = "skullmining.auth";
+  function readAuth() {
+    try { var a = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); return a && a.cmdr && a.key ? a : null; } catch (e) { return null; }
+  }
+  function storeAuth(a) {
+    try { if (a) localStorage.setItem(AUTH_KEY, JSON.stringify(a)); else localStorage.removeItem(AUTH_KEY); } catch (e) { /* sin almacenamiento: habrá que entrar cada vez */ }
+  }
+  function showLogin(msg) {
+    document.body.classList.add("locked");
+    $("login").hidden = false; $("whoami").hidden = true; $("logout").hidden = true;
+    $("lgBtn").disabled = false; $("lgBtn").textContent = "Entrar";
+    $("lgErr").textContent = msg || "";
+    if (state.auth && !$("lgCmdr").value) $("lgCmdr").value = state.auth.cmdr;
+    setNotice("", "");
+    ($("lgCmdr").value ? $("lgKey") : $("lgCmdr")).focus();
+  }
+  function showSite() {
+    document.body.classList.remove("locked");
+    $("login").hidden = true;
+    $("whoami").innerHTML = "CMDR <b>" + esc(state.auth.cmdr) + "</b>"; $("whoami").hidden = false; $("logout").hidden = false;
+  }
+  var AUTH_ERRORS = {
+    auth: "Clave incorrecta. Es la «clave de la flota» que tienes en el plugin; si no la tienes, pídela en el Discord de la flota.",
+    member: "Ese comandante no está en la lista de miembros de la flota Skull. Escríbelo como en el juego; si es correcto, pide que te añadan a la lista.",
+    members: "Ahora mismo no se puede comprobar la lista de miembros. Avisa a un administrador."
+  };
+  function loadLive(fromLogin) {
+    if (!fromLogin) $("count").textContent = "Cargando sitios…";
+    loadJsonp(state.api).then(function (d) {
+      if (d && !d.ok && AUTH_ERRORS[d.error]) {
+        if (d.error !== "members") storeAuth(null);
+        showLogin(AUTH_ERRORS[d.error]);
+        return;
+      }
       if (!d || !d.ok) throw new Error((d && d.error) || "respuesta no válida");
-      load(d);
+      storeAuth(state.auth); showSite(); load(d);
     }).catch(function (err) {
       $("count").textContent = "";
+      if (fromLogin) { showLogin("No se pudo conectar con la hoja de la flota (" + err.message + "). Inténtalo en un rato."); return; }
+      showSite();
       setNotice("error", "No se pudo leer la hoja de la flota (" + esc(err.message) + "). Inténtalo en un rato.");
     });
   }
