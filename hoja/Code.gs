@@ -228,10 +228,52 @@ function normCmdr_(s) {
   return s.replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
+var MEMBERS_COPY_TAB = 'Miembros (copia)';
+
 function members_(fresh) {
   var cache = CacheService.getScriptCache();
   var hit = !fresh && cache.get('members_v1');
   if (hit) return hit.split('\n');
+  var names;
+  try {
+    names = readMembersOriginal_();
+    try { saveMembersCopy_(names); } catch (e) { console.warn('No se pudo guardar la copia de miembros: ' + e); }
+  } catch (err) {
+    // La lista de la flota no se puede leer (borrada, sin permiso...): usamos la copia de nuestra hoja
+    names = readMembersCopy_();
+    if (!names.length) throw err;
+    console.warn('Lista de miembros original no disponible (' + err + '); uso la copia (' + names.length + ')');
+  }
+  cache.put('members_v1', names.join('\n'), 600);   // 10 min: los cambios en la lista tardan eso en notarse
+  return names;
+}
+
+// Copia de respaldo en la pestaña "Miembros (copia)": se actualiza sola cuando cambia la lista original.
+// Si la original desaparece, la web sigue funcionando con esta copia (y se puede editar a mano).
+function saveMembersCopy_(names) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(MEMBERS_COPY_TAB);
+  if (sh && readMembersCopy_().join('\n') === names.join('\n')) return false;
+  if (!sh) sh = ss.insertSheet(MEMBERS_COPY_TAB);
+  sh.clearContents();
+  sh.getRange(1, 1, 1, 2).setValues([['NOMBRE COMANDANTE', 'Copia automática de la lista de la flota · ' +
+    Utilities.formatDate(new Date(), 'Europe/Madrid', 'dd/MM/yyyy HH:mm')]]);
+  sh.getRange(2, 1, names.length, 1).setValues(names.map(function (n) { return [n]; }));
+  return true;
+}
+
+function readMembersCopy_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(MEMBERS_COPY_TAB);
+  if (!sh || sh.getLastRow() < 2) return [];
+  var out = [];
+  sh.getRange(2, 1, sh.getLastRow() - 1, 1).getDisplayValues().forEach(function (r) {
+    var n = normCmdr_(r[0]);
+    if (n && out.indexOf(n) < 0) out.push(n);
+  });
+  return out;
+}
+
+function readMembersOriginal_() {
   var props = PropertiesService.getScriptProperties();
   var ss = SpreadsheetApp.openById(props.getProperty('MIEMBROS_HOJA_ID') || MEMBERS_SHEET_ID);
   var sh = ss.getSheetByName(props.getProperty('MIEMBROS_PESTANA') || MEMBERS_TAB);
@@ -249,7 +291,6 @@ function members_(fresh) {
     if (n && names.indexOf(n) < 0) names.push(n);
   }
   if (!names.length) throw new Error('La lista de miembros está vacía');
-  cache.put('members_v1', names.join('\n'), 600);   // 10 min: los cambios en la lista tardan eso en notarse
   return names;
 }
 
@@ -266,8 +307,10 @@ function checkAccess_(cmdr, key) {
 
 // Ejecútala a mano desde el editor para comprobar que el script puede leer la lista (y dar permiso la primera vez)
 function probarListaMiembros() {
-  var names = members_(true);
+  var names = readMembersOriginal_();
   Logger.log('Miembros leídos: ' + names.length + ' (primeros: ' + names.slice(0, 5).join(', ') + ')');
+  Logger.log(saveMembersCopy_(names) ? 'Copia guardada en la pestaña "' + MEMBERS_COPY_TAB + '"' : 'La copia ya estaba al día');
+  CacheService.getScriptCache().remove('members_v1');
 }
 
 var PUBLIC_SITE_FIELDS = {
