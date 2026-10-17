@@ -204,7 +204,7 @@ function doGet(e) {
     var acc = checkAccess_(p.cmdr, p.key);
     if (!acc.ok) return jsonp_(acc, p.callback);
     if (p.view === 'sell') return jsonp_(sellPlaces_(p.mineral, p.system), p.callback);
-    ensureSchema_(false); return publicRanking_(p.callback);
+    ensureSchema_(false); return publicRanking_(p.callback, p.cmdr);
   }
   var token = PropertiesService.getScriptProperties().getProperty('FLEET_TOKEN');
   if (!e || !e.parameter || e.parameter.token !== token) return json_({ ok: false, error: 'token' });
@@ -327,7 +327,7 @@ var PUBLIC_SITE_FIELDS = {
   'Creado': 'created', 'Cr/h': 'crh'
 };
 
-function publicRanking_(callback) {
+function publicRanking_(callback, cmdr) {
   var values = sheet_('Sitios').getDataRange().getValues();
   var head = values.shift();
   var sites = values.filter(function (r) { return r[0]; }).map(function (r) {
@@ -407,6 +407,7 @@ function publicRanking_(callback) {
   var cmdrList = Object.keys(by).map(function (k) { return by[k]; })
     .sort(function (a, b) { return b.sites - a.sites || a.name.localeCompare(b.name); }).slice(0, 20);
   var out = { ok: true, updated: new Date().toISOString(), sites: sites, zones: zones, names: names, sales: sales, cmdrs: cmdrList,
+              mine: myContributions_(cmdr, values, head),
               regen: { n: maxs.length, minDays: med(mins), maxDays: med(maxs) },
               stats: { sites: sites.length, sessions: ses.length, commanders: Object.keys(cmdrs).length, tonnes: tonnes } };
   var txt = JSON.stringify(out);
@@ -414,6 +415,22 @@ function publicRanking_(callback) {
     return ContentService.createTextOutput(callback + '(' + txt + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
   return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON);
+}
+
+// "Mis aportaciones": SiteID de los sitios que este CMDR descubrió, minó o marcó (solo se le devuelven a él)
+function myContributions_(cmdr, siteRows, siteHead) {
+  var me = normCmdr_(cmdr);
+  if (!me) return null;
+  var disc = {}, mined = {}, marked = {};
+  var di = siteHead.indexOf('Descubierto por');
+  siteRows.forEach(function (r) { if (r[0] && di >= 0 && normCmdr_(r[di]) === me) disc[String(r[0])] = 1; });
+  var vis = tabValues_('Visitas'), vh = vis[0] || [];
+  var vs = vh.indexOf('SiteID'), vc = vh.indexOf('CMDR');
+  vis.slice(1).forEach(function (r) { if (vs >= 0 && r[vs] && normCmdr_(r[vc]) === me) mined[String(r[vs])] = 1; });
+  var est = tabValues_('Estados'), eh = est[0] || [];
+  var es = eh.indexOf('SiteID'), ec = eh.indexOf('CMDR');
+  est.slice(1).forEach(function (r) { if (es >= 0 && r[es] && normCmdr_(r[ec]) === me) marked[String(r[es])] = 1; });
+  return { discovered: Object.keys(disc), mined: Object.keys(mined), marked: Object.keys(marked) };
 }
 
 // ---------------------------------------------------------------------- sesiones

@@ -230,6 +230,8 @@
   .zcard .zm b { color: #fff; }
   .zcard .zs { margin-top: 4px; font-size: 13px; color: var(--muted); }
   .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-dim); color: var(--accent); border-radius: 999px; padding: 2px 10px; margin-left: 8px; font-weight: 600; }
+  #mineBtn[aria-pressed="true"] { background: var(--accent); color: #111; border-color: var(--accent); }
+  .mytag { margin-top: 4px; font-size: 12px; color: var(--accent); font-weight: 600; }
   .chip button { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; padding: 0; }
 
   footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
@@ -282,6 +284,7 @@
     <a class="pricesbtn" href="https://spansh.co.uk/" target="_blank" rel="noopener" title="Buscador de estaciones, sistemas y mercados">Spansh ↗</a>
     <a class="pricesbtn" href="https://github.com/njthomson/SrvSurvey" target="_blank" rel="noopener" title="Guía hasta las coordenadas de un sitio en la nave y en el Rhino">SrvSurvey ↗</a>
     <a class="pricesbtn" href="https://github.com/skullflota/SkullMining/releases" target="_blank" rel="noopener" title="Descargar el plugin de EDMC">Plugin Skull Mining ↗</a>
+    <button type="button" class="pricesbtn" id="mineBtn" aria-pressed="false" hidden>⭐ Mis aportaciones</button>
     <span class="whoami" id="whoami" hidden></span>
     <button type="button" class="pricesbtn" id="logout" hidden>Salir</button>
   </nav>
@@ -421,7 +424,7 @@
 <script>
 (function () {
   "use strict";
-  var state = { sites: [], zones: [], stats: null, demo: false, zoneFilter: null, regen: null, showAll: false };
+  var state = { sites: [], zones: [], stats: null, demo: false, zoneFilter: null, regen: null, showAll: false, mine: null, mineOnly: false };
   var $ = function (id) { return document.getElementById(id); };
   var nf = new Intl.NumberFormat("es-ES");
 
@@ -747,6 +750,7 @@
     var zf = state.zoneFilter;
     var sort = $("sort").value;
     var list = state.sites.filter(function (s) {
+      if (state.mineOnly && !myTag(s)) return false;
       if (zf && (s.body !== zf.body || String(s.zone) !== String(zf.zone))) return false;
       if (gF && groundLabel(s) !== gF) return false;
       if (agF === "hide" && s.depleted) return false;
@@ -780,7 +784,7 @@
 
   // ¿Está el visitante buscando o filtrando? Entonces se ven los resultados; si no, el resumen (Top 10, marcados, últimos)
   function hasFilters() {
-    return !!(state.showAll || state.zoneFilter || $("q").value.trim() || $("mineral").value || Number($("minRigs").value) ||
+    return !!(state.showAll || state.mineOnly || state.zoneFilter || $("q").value.trim() || $("mineral").value || Number($("minRigs").value) ||
       $("terrain").value || $("groundF").value || $("densityF").value || $("depletedF").value !== "hide");
   }
   function hasData(q) {
@@ -810,11 +814,35 @@
         return '<button type="button" data-sys="' + esc(n) + '">' + esc(n) + "</button>";
       }).join("") + "</div>" : "") + "</div>";
   }
+  // ---- Mis aportaciones: sitios que el CMDR conectado descubrió, minó o marcó (la hoja solo le devuelve los suyos)
+  function myTag(s) {
+    var m = state.mine, id = String(s.id);
+    if (!m) return "";
+    var t = [];
+    if ((m.discovered || []).indexOf(id) >= 0) t.push("descubierto por ti");
+    if ((m.mined || []).indexOf(id) >= 0) t.push("minado");
+    if ((m.marked || []).indexOf(id) >= 0) t.push("marcado");
+    return t.join(" · ");
+  }
+  function myTagHtml(s) { var t = myTag(s); return t ? '<div class="mytag">⭐ ' + esc(t) + "</div>" : ""; }
+  function mineCount() { return state.sites.filter(function (s) { return myTag(s); }).length; }
+  function setMineOnly(on) {
+    // Al ver mis sitios se muestran también los agotados; al salir se deja el filtro como estaba
+    if (on && !state.mineOnly && $("depletedF").value === "hide") { $("depletedF").value = "show"; state.mineDepAuto = true; }
+    if (!on && state.mineDepAuto) { if ($("depletedF").value === "show") $("depletedF").value = "hide"; state.mineDepAuto = false; }
+    state.mineOnly = !!on;
+    $("mineBtn").setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  function renderMineBtn() {
+    var n = mineCount();
+    $("mineBtn").hidden = !state.mine;
+    $("mineBtn").textContent = "⭐ Mis aportaciones" + (state.mine ? " (" + n + ")" : "");
+  }
   function refresh() { renderZones(); render(); }
   function clearAll() {
     $("q").value = ""; $("mineral").value = ""; $("minRigs").value = "0"; $("terrain").value = ""; $("groundF").value = "";
     $("densityF").value = ""; $("depletedF").value = "hide";
-    state.zoneFilter = null; state.showAll = false; refresh();
+    state.zoneFilter = null; state.showAll = false; setMineOnly(false); refresh();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -834,6 +862,7 @@
     var list = filtered();
     $("count").innerHTML = list.length + (list.length === 1 ? " sitio" : " sitios") +
       (list.length !== state.sites.length ? " de " + state.sites.length : "") +
+      (state.mineOnly ? '<span class="chip">⭐ Mis aportaciones <button type="button" id="clearMine" aria-label="Quitar filtro de mis aportaciones">✕</button></span>' : "") +
       (state.zoneFilter ? '<span class="chip">' + esc(shortBody(state.zoneFilter)) + " · Zona " + esc(state.zoneFilter.zone) +
         ' <button type="button" id="clearZone" aria-label="Quitar filtro de zona">✕</button></span>' : "") +
       ' <button type="button" class="clearall" id="clearAll">✕ Limpiar búsqueda</button>';
@@ -845,7 +874,7 @@
       rows.push(
         '<tr class="' + cls + '">' +
         '<td class="rank">' + (i + 1) + "</td>" +
-        '<td><div class="mineral">' + esc(s.mineral) + '</div><div class="price">' + credits(s.price) + "/t</div>" + sellBtn(s) + "</td>" +
+        '<td><div class="mineral">' + esc(s.mineral) + '</div><div class="price">' + credits(s.price) + "/t</div>" + sellBtn(s) + myTagHtml(s) + "</td>" +
         '<td class="num"><span class="value">' + credits(s.value) + '</span>' + (s.crh ? '<div class="price" title="Mediana de las sesiones de la flota en este sitio">≈ ' + credits(s.crh) + "/h</div>" : "") + '<div class="price">' + (s.tpc ? esc(s.tpc) + " t/recogida" :
           (Number(s.visits) === 0 ? '<span title="Marcado con el formulario del plugin, aún sin minar: valor estimado con taladros llenos">📌 marcado · estimado</span>' : "")) + "</div>" +
           '<div class="left" title="' + esc(leftTitle(s)) + '">' + esc(tonsLeftText(s, false)) + "</div>" +
@@ -861,7 +890,7 @@
       cards.push(
         '<article class="card' + (s.depleted ? " depleted" : "") + '"><div class="row1"><div><span class="muted">#' + (i + 1) + '</span> <span class="mineral">' + esc(s.mineral) +
         '</span></div><span class="value">' + credits(s.value) + "</span></div>" +
-        '<div class="loc" style="margin-top:6px"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(shortBody(s)) + " · " + zoneLabel(s) + "</div></div>" +
+        '<div class="loc" style="margin-top:6px"><div class="sys">' + esc(s.system) + " " + copyBtn(s.system) + '</div><div class="body">' + esc(shortBody(s)) + " · " + zoneLabel(s) + "</div>" + myTagHtml(s) + "</div>" +
         '<div class="grid">' +
         '<div><div class="k">Densidad · Cantidad</div>' + stateBadge(s, true) + "</div>" +
         '<div><div class="k">Taladros</div>' + rigsDots(s.rigs) + "</div>" +
@@ -875,6 +904,8 @@
       );
     });
     var empty = state.sites.length ? "Ningún sitio coincide con los filtros." : "Todavía no hay sitios registrados.";
+    if (state.mineOnly && !mineCount()) empty = "Aún no hay sitios a nombre de " + (state.auth ? state.auth.cmdr : "tu comandante") +
+      ". Cuentan los sitios que mines o marques con el plugin (con tu nombre de comandante, no con un alias).";
     $("tbody").innerHTML = rows.join("") || '<tr><td colspan="8" class="muted" style="text-align:center">' + empty + "</td></tr>";
     $("cards").innerHTML = cards.join("") || '<p class="muted">' + empty + "</p>";
   }
@@ -1029,9 +1060,11 @@
     state.stats = data && data.stats;
     state.regen = (data && data.regen) || null;
     state.cmdrs = (data && data.cmdrs) || [];
+    state.mine = (data && data.mine) || null;
     renderStats();
     renderRegenNotice();
     renderHome();
+    renderMineBtn();
     fillMinerals();
     fillGrounds();
     refresh();
@@ -1089,6 +1122,13 @@
       }
       if (e.target.id === "showAll") { state.showAll = true; refresh(); $("count").scrollIntoView({ behavior: "smooth", block: "start" }); return; }
       if (e.target.id === "clearAll") { clearAll(); return; }
+      if (e.target.id === "clearMine") { setMineOnly(false); refresh(); return; }
+      if (e.target.id === "mineBtn") {
+        var on = !state.mineOnly;
+        setMineOnly(on);
+        refresh(); if (on) $("count").scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
       var z = e.target.closest("button.zcard");
       if (z) {
         var same = state.zoneFilter && state.zoneFilter.body === z.dataset.body && String(state.zoneFilter.zone) === z.dataset.zone;
@@ -1139,7 +1179,7 @@
       loadLive(true);
     });
     $("logout").addEventListener("click", function () {
-      storeAuth(null); state.auth = null; $("lgKey").value = ""; showLogin("");
+      storeAuth(null); state.auth = null; state.mine = null; setMineOnly(false); renderMineBtn(); $("lgKey").value = ""; showLogin("");
     });
     // Botón "Ir a web Skullmining" del plugin (v0.7.0+): trae CMDR y clave detrás de '#' y entra sin preguntar.
     // Se borran de la barra de direcciones al momento; si son buenos quedan guardados como en el formulario.
@@ -1164,7 +1204,7 @@
   }
   function showLogin(msg) {
     document.body.classList.add("locked");
-    $("login").hidden = false; $("whoami").hidden = true; $("logout").hidden = true;
+    $("login").hidden = false; $("whoami").hidden = true; $("logout").hidden = true; $("mineBtn").hidden = true;
     $("lgBtn").disabled = false; $("lgBtn").textContent = "Entrar";
     $("lgErr").textContent = msg || "";
     if (state.auth && !$("lgCmdr").value) $("lgCmdr").value = state.auth.cmdr;

@@ -423,5 +423,20 @@
    "name": "Novato",
    "sites": 1
   }
- ]
+ ],
+ "mine": {
+  "discovered": [
+   "DEMO1",
+   "DEMO7"
+  ],
+  "mined": [
+   "DEMO1",
+   "DEMO3",
+   "DEMO4"
+  ],
+  "marked": [
+   "DEMO7",
+   "DEMO8"
+  ]
+ }
 }
