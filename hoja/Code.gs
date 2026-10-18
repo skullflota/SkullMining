@@ -193,6 +193,7 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+  maybePostVacuum_();
   return json_({ ok: true });
 }
 
@@ -204,7 +205,7 @@ function doGet(e) {
     var acc = checkAccess_(p.cmdr, p.key);
     if (!acc.ok) return jsonp_(acc, p.callback);
     if (p.view === 'sell') return jsonp_(sellPlaces_(p.mineral, p.system), p.callback);
-    ensureSchema_(false); return publicRanking_(p.callback, p.cmdr);
+    ensureSchema_(false); maybePostVacuum_(); return publicRanking_(p.callback, p.cmdr);
   }
   var token = PropertiesService.getScriptProperties().getProperty('FLEET_TOKEN');
   if (!e || !e.parameter || e.parameter.token !== token) return json_({ ok: false, error: 'token' });
@@ -407,7 +408,7 @@ function publicRanking_(callback, cmdr) {
   var cmdrList = Object.keys(by).map(function (k) { return by[k]; })
     .sort(function (a, b) { return b.sites - a.sites || a.name.localeCompare(b.name); }).slice(0, 20);
   var out = { ok: true, updated: new Date().toISOString(), sites: sites, zones: zones, names: names, sales: sales, cmdrs: cmdrList,
-              mine: myContributions_(cmdr, values, head),
+              mine: myContributions_(cmdr, values, head), vacuum: vacuum_(ses),
               regen: { n: maxs.length, minDays: med(mins), maxDays: med(maxs) },
               stats: { sites: sites.length, sessions: ses.length, commanders: Object.keys(cmdrs).length, tonnes: tonnes } };
   var txt = JSON.stringify(out);
@@ -415,6 +416,87 @@ function publicRanking_(callback, cmdr) {
     return ContentService.createTextOutput(callback + '(' + txt + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
   return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ------------------------------------------------------- Aspirador de la Semana
+// Semana de Frontier: del jueves a las 07:00 UTC (reinicio semanal de los servidores) al jueves siguiente.
+var WEEK_RESET_DAY = 4;          // 0 = domingo … 4 = jueves
+var WEEK_RESET_HOUR_UTC = 7;
+var VACUUM_GRACE_H = 3;          // espera tras el reinicio antes de dar el premio (envíos que llegan tarde)
+
+function weekStart_(t) {
+  var d = new Date(t);
+  var s = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), WEEK_RESET_HOUR_UTC);
+  s -= ((d.getUTCDay() - WEEK_RESET_DAY + 7) % 7) * 864e5;
+  if (s > t) s -= 7 * 864e5;
+  return s;
+}
+
+// Toneladas minadas por cada CMDR entre from y to (por la hora de fin de cada sesión)
+function vacuumTop_(ses, from, to) {
+  var by = {};
+  ses.forEach(function (r) {
+    var t = timeOf_(r[7]) || timeOf_(r[6]) || timeOf_(r[2]);
+    var tn = Number(r[17]) || 0;
+    if (!t || t < from || t >= to || tn <= 0) return;
+    var name = String(r[3] || '').replace(/^\s*cmdr\s+/i, '').trim();
+    if (!name) return;
+    var k = name.toLowerCase();
+    var o = by[k] || (by[k] = { name: name, tonnes: 0, sessions: 0 });
+    o.tonnes += tn; o.sessions++;
+  });
+  return Object.keys(by).map(function (k) { by[k].tonnes = round_(by[k].tonnes, 1); return by[k]; })
+    .sort(function (a, b) { return b.tonnes - a.tonnes || a.name.localeCompare(b.name); }).slice(0, 3);
+}
+
+function vacuum_(ses) {
+  var now = Date.now(), cur = weekStart_(now), prev = cur - 7 * 864e5;
+  return { last: { start: new Date(prev).toISOString(), end: new Date(cur).toISOString(), top: vacuumTop_(ses, prev, cur) },
+           current: { start: new Date(cur).toISOString(), top: vacuumTop_(ses, cur, now + 1) } };
+}
+
+// Publica en Discord, una sola vez por semana, el Aspirador de la semana que acaba de terminar.
+// Se comprueba al recibir datos del plugin o al abrir la web (no hace falta ningún activador).
+function maybePostVacuum_() {
+  try {
+    var now = Date.now(), cur = weekStart_(now);
+    if (now < cur + VACUUM_GRACE_H * 3600e3) return;
+    var key = new Date(cur - 7 * 864e5).toISOString().slice(0, 10);
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty('ASPIRADOR_PUBLICADO') === key) return;
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(5000)) return;
+    try {
+      if (props.getProperty('ASPIRADOR_PUBLICADO') === key) return;
+      props.setProperty('ASPIRADOR_PUBLICADO', key);
+      var cfg = discordConfig_();
+      if (!cfg.url || cfg.mode === 'no') return;
+      var last = vacuum_(tabValues_('Sesiones').slice(1)).last;
+      if (last.top.length) sendDiscord_(vacuumMessage_(last));
+    } finally { lock.releaseLock(); }
+  } catch (err) { console.warn('Aspirador de la Semana: ' + err); }
+}
+
+function vacuumMessage_(w) {
+  var f = function (iso) { return Utilities.formatDate(new Date(iso), 'Europe/Madrid', 'dd/MM'); };
+  var t = function (x) { return Utilities.formatString('%s t', String(x).replace('.', ',')); };
+  var win = w.top[0];
+  var desc = '**CMDR ' + win.name + '** ha aspirado **' + t(win.tonnes) + '** de mineral en ' + win.sessions +
+    (win.sessions === 1 ? ' sesión' : ' sesiones') + ' del jueves ' + f(w.start) + ' al jueves ' + f(w.end) + ' (de reinicio a reinicio de los servidores).\n' +
+    'No queda ni una piedra en los planetas por donde ha pasado. 🌀';
+  var medals = ['🥈', '🥉'];
+  w.top.slice(1).forEach(function (o, i) { desc += '\n' + medals[i] + ' ' + o.name + ': ' + t(o.tonnes); });
+  desc += '\n\nNuevo concurso desde el reinicio del jueves. [Ver la web](' + WEB_URL + ')';
+  return { embeds: [{ title: '🏆 Aspirador de la Semana', description: desc, color: 0xff8a1f }] };
+}
+
+// Ejecútala a mano para (re)publicar en Discord el Aspirador de la semana pasada
+function publicarAspirador() {
+  var last = vacuum_(tabValues_('Sesiones').slice(1)).last;
+  if (!last.top.length) { Logger.log('Nadie minó la semana pasada (' + last.start + ' → ' + last.end + ')'); return; }
+  var ok = sendDiscord_(vacuumMessage_(last));
+  PropertiesService.getScriptProperties().setProperty('ASPIRADOR_PUBLICADO', last.start.slice(0, 10));
+  Logger.log((ok ? 'Publicado: ' : 'No se pudo enviar a Discord: ') + last.top[0].name + ' ' + last.top[0].tonnes + ' t');
 }
 
 // "Mis aportaciones": SiteID de los sitios que este CMDR descubrió, minó o marcó (solo se le devuelven a él)

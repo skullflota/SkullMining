@@ -53,6 +53,17 @@
   nav.links .pricesbtn { border-color: var(--line); color: var(--text); }
   nav.links #pricesBtn { border-color: var(--accent); color: var(--accent); }
   nav.links .pricesbtn:hover { background: var(--accent); color: #111; border-color: var(--accent); }
+  .vacuum { margin: 14px 0 0; border: 1px solid var(--accent); background: var(--accent-dim); border-radius: var(--radius); padding: 12px 16px;
+    display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .vacuum .ico { font-size: 34px; line-height: 1; }
+  .vacuum .main { flex: 1 1 260px; min-width: 0; }
+  .vacuum .lbl { font-family: "Orbitron", sans-serif; font-size: 12px; letter-spacing: .08em; color: var(--accent); }
+  .vacuum .who { font-size: 20px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+  .vacuum .who span { color: var(--accent); }
+  .vacuum .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .vacuum .now { flex: 0 1 auto; font-size: 13px; color: var(--muted); border-left: 1px solid var(--line); padding-left: 14px; }
+  .vacuum .now b { color: var(--text); }
+  @media (max-width: 600px) { .vacuum .now { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 8px; flex-basis: 100%; } }
   .regenbox { margin: 14px 0 0; border: 1px solid #45d48366; background: #45d48310; border-radius: var(--radius); padding: 10px 14px; font-size: 15px; }
   .regenbox b { color: var(--good); }
   .regenbox ul { list-style: none; margin: 4px 0 0; padding: 0; }
@@ -310,6 +321,7 @@
       <tbody id="pricesBody"></tbody></table>
   </section>
 
+  <section class="vacuum" id="vacuum" aria-label="Aspirador de la Semana" hidden></section>
   <div id="notice"></div>
   <div id="regenNotice"></div>
 
@@ -413,6 +425,7 @@
     <p><b>Quedan ≈ … t</b> es una estimación de lo que le queda al sitio: taladros × toneladas por taladro según la densidad (alta 125–175 t, media el doble, baja el triple) × la parte que queda según la cantidad marcada (alta 57–100 %, media 27–67 %, baja 0–34 %), menos lo que haya sacado la flota después de marcarla. Sin densidad o cantidad marcadas el rango es mucho más amplio. Son cifras medidas por el autor de <a href="https://github.com/Fumlop/EDRhinoSpotter">RhinoSpotter</a> en seis depósitos; las iremos ajustando con los datos de la flota.</p>
     <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. El escáner del Rhino muestra dos cosas: la <b>densidad</b> (D: alta, media, baja), que es fija, y la <b>cantidad</b> de mineral que queda (C: alta, media, baja, agotado), que baja a medida que mina cualquier jugador. Las marcan los miembros con los botones del plugin; junto a la cantidad se guardan las toneladas que llevaba sacadas la flota, para estimar cuánto aguanta cada sitio. Si un sitio estaba agotado y alguien lo marca después con una cantidad (alta, media o baja), la web lo da por <b>regenerado</b>, lo avisa arriba durante unos días y apunta cuánto tardó. Como solo lo sabemos cuando alguien lo mira, el tiempo real es un rango; con cada caso la previsión de los sitios agotados será más fina.</p>
     <p>Un <b>sitio</b> es un depósito de un solo mineral (la mancha morada del escáner); puede medir más de 100 m y admitir varios taladros. Los taladros deben estar a <b>47 m</b> como mínimo entre sí. </p>
+    <p><b>🏆 Aspirador de la Semana</b> = el comandante que más toneladas ha minado con el plugin entre dos reinicios semanales de los servidores (jueves a las 07:00 UTC, las 09:00 en España en horario de verano). Cuenta cada sesión por su hora de fin. El ganador se anuncia en Discord una vez, unas horas después del reinicio.</p>
     <p>Datos enviados por los miembros con el plugin <a href="https://github.com/skullflota/SkullMining">Skull Mining</a> para EDMC.</p>
   </footer>
 </div>
@@ -838,6 +851,33 @@
     $("mineBtn").hidden = !state.mine;
     $("mineBtn").textContent = "⭐ Mis aportaciones" + (state.mine ? " (" + n + ")" : "");
   }
+  // ---- Aspirador de la Semana: quien más toneladas minó de reinicio a reinicio (jueves 07:00 UTC)
+  function renderVacuum(v) {
+    var box = $("vacuum");
+    var last = v && v.last && v.last.top && v.last.top.length ? v.last : null;
+    var cur = v && v.current && v.current.top && v.current.top.length ? v.current.top[0] : null;
+    if (!last && !cur) { box.hidden = true; return; }
+    var t = function (x) { return nf.format(x) + " t"; };
+    var d = function (iso) { return new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "short" }); };
+    var html = '<div class="ico" aria-hidden="true">🏆</div><div class="main"><div class="lbl">ASPIRADOR DE LA SEMANA</div>';
+    if (last) {
+      var w = last.top[0];
+      html += '<div class="who">CMDR ' + esc(w.name) + ' · <span>' + t(w.tonnes) + "</span></div>" +
+        '<div class="sub">Del ' + d(last.start) + " al " + d(last.end) + ". No deja ni una piedra en pie 🌀" +
+        (last.top.length > 1 ? " · " + last.top.slice(1).map(function (o, i) { return (i ? "🥉 " : "🥈 ") + esc(o.name) + " " + t(o.tonnes); }).join(" · ") : "") +
+        "</div>";
+    } else {
+      html += '<div class="who">Plaza vacante</div><div class="sub">La semana pasada nadie minó con el plugin. ¿Quién se atreve?</div>';
+    }
+    html += "</div>";
+    if (cur) {
+      var end = new Date(new Date(v.current.start).getTime() + 7 * 864e5), left = Math.max(0, Math.ceil((end - Date.now()) / 864e5));
+      html += '<div class="now">Esta semana va ganando<br><b>' + esc(cur.name) + "</b> con " + t(cur.tonnes) +
+        "<br>Quedan " + left + (left === 1 ? " día" : " días") + "</div>";
+    }
+    box.innerHTML = html;
+    box.hidden = false;
+  }
   function refresh() { renderZones(); render(); }
   function clearAll() {
     $("q").value = ""; $("mineral").value = ""; $("minRigs").value = "0"; $("terrain").value = ""; $("groundF").value = "";
@@ -1061,6 +1101,7 @@
     state.regen = (data && data.regen) || null;
     state.cmdrs = (data && data.cmdrs) || [];
     state.mine = (data && data.mine) || null;
+    renderVacuum((data && data.vacuum) || null);
     renderStats();
     renderRegenNotice();
     renderHome();
