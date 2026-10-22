@@ -49,6 +49,8 @@ KNOWN_EVENTS = {
     "FSDJump", "Location", "CarrierJump", "Touchdown", "Liftoff", "MarketSell",
     "Shutdown", "ApproachBody", "LeaveBody", "Embark", "Disembark",
     "MaterialCollected", "CargoTransfer", "Cargo", "SupercruiseExit", "ModuleInfo", "EjectCargo",
+    # minería en anillos con la nave: conocidos, no son novedades del Rhino
+    "ProspectedAsteroid", "AsteroidCracked", "LaunchDrone",
 }
 SITE_SIGNAL_RE = re.compile(r"PlanetaryMiningLocation_Name;:#index=(\d+)", re.I)
 

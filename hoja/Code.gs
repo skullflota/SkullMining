@@ -1157,7 +1157,11 @@ function handleBody_(d) {
   if (cV && volc) sh.getRange(sh.getLastRow(), cV).setValue(volc);
 }
 
+// Eventos normales de la minería en anillos con la nave: no son novedades del Rhino (ProspectedAsteroid salió en Discord el 22-oct)
+var IGNORED_EVENTS = ['ProspectedAsteroid', 'AsteroidCracked', 'LaunchDrone'];
+
 function handleEvent_(d) {
+  if (IGNORED_EVENTS.indexOf(d.event) >= 0) return;
   var sh = sheet_('Eventos');
   var seen = sh.getLastRow() > 1 && sh.getRange(2, 3, sh.getLastRow() - 1, 1).getValues()
     .some(function (r) { return r[0] === d.event; });
