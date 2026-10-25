@@ -60,5 +60,26 @@ def test_descarga():
     bad.fetch(("Sis", "B1")); assert "clave" in bad.status
 
 
+def test_errores():
+    class ConnectTimeout(Exception): pass
+    class SSLError(Exception): pass
+    class ConnectionError_(Exception): pass
+    assert "no responde a tiempo" in S.explain_error(ConnectTimeout("Connection to script.google.com timed out"))
+    assert "certificado" in S.explain_error(SSLError("certificate verify failed"))
+    assert "no se puede conectar" in S.explain_error(ConnectionError_("getaddrinfo failed"))
+    class Html:
+        status_code, text = 200, "<!DOCTYPE html><html>Sign in</html>"
+        def json(self): raise ValueError("Expecting value")
+    b = S.BodySites(logging.getLogger("t"), lambda: "https://x/exec", lambda: "k", lambda: "Yo",
+                    http_get=lambda *a, **k: Html())
+    b.fetch(("Sis", "B1")); assert "no devuelve datos" in b.status, b.status
+    def boom(*a, **k): raise ConnectTimeout("timed out")
+    b2 = S.BodySites(logging.getLogger("t"), lambda: "https://x/exec", lambda: "k", lambda: "Yo", http_get=boom)
+    b2.fetch(("Sis", "B1")); assert "no responde a tiempo" in b2.status
+    old = S.BodySites(logging.getLogger("t"), lambda: "https://x/exec", lambda: "k", lambda: "Yo",
+                      http_get=lambda *a, **k: R_({"ok": False, "error": "token"}))
+    old.fetch(("Sis", "B1")); assert "antigua" in old.status
+
+
 if __name__ == "__main__":
-    test_geometria(); test_vista(); test_descarga(); print("OK test_mapa")
+    test_geometria(); test_vista(); test_descarga(); test_errores(); print("OK test_mapa")

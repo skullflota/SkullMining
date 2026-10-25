@@ -108,6 +108,19 @@ def build_view(st: dict, sites: list, target_id: Optional[str] = None, in_srv: b
     return {"heading": heading, "scale": scale, "items": items, "target": target, "next": nxt}
 
 
+def explain_error(e: Exception) -> str:
+    """Motivo de un fallo de red en palabras que entienda cualquiera (sale en el mapa)."""
+    name = type(e).__name__
+    text = str(e).lower()
+    if "Timeout" in name or "timed out" in text:
+        return "Google no responde a tiempo (¿antivirus, cortafuegos o VPN bloqueando EDMC?)"
+    if "SSL" in name or "certificate" in text:
+        return "error de certificado al conectar con Google (¿antivirus que revisa las conexiones?)"
+    if "ConnectionError" in name or "resolve" in text or "getaddrinfo" in text:
+        return "no se puede conectar con Google (¿sin internet o conexión bloqueada para EDMC?)"
+    return f"sin conexión con la hoja ({name})"
+
+
 class BodySites:
     """Sitios de la flota del cuerpo actual, descargados de la hoja en segundo plano."""
 
@@ -156,12 +169,22 @@ class BodySites:
                 return
             r = self.http_get(url, timeout=30, params={"view": "body", "system": key[0], "body": key[1],
                                                        "cmdr": cmdr, "key": token})
-            data = r.json() if r.status_code == 200 else {}
+            try:
+                data = r.json()
+            except ValueError:
+                # Google ha devuelto una página (HTML) en vez de datos: URL antigua, despliegue borrado, inicio de sesión...
+                self.status = f"Mapa: la URL de la flota no devuelve datos (respuesta {r.status_code}). Revisa la URL en Ajustes"
+                self.log.warning(f"Sitios del cuerpo: respuesta no JSON ({r.status_code}): {(r.text or '')[:150]!r}")
+                self.next_try = time.time() + RETRY_S
+                return
             if not data.get("ok"):
                 err = data.get("error") or r.status_code
-                self.status = {"auth": "Mapa: clave incorrecta", "member": "Mapa: tu CMDR no está en la lista de la flota"} \
+                self.status = {"auth": "Mapa: clave incorrecta",
+                               "token": "Mapa: la URL de la flota es antigua; pon la de siempre en Ajustes",
+                               "member": "Mapa: tu CMDR no está en la lista de la flota",
+                               "members": "Mapa: la hoja no puede leer la lista de miembros"} \
                     .get(err, f"Mapa: la hoja respondió {err}")
-                self.log.info(f"Sitios del cuerpo: {self.status}")
+                self.log.warning(f"Sitios del cuerpo: {self.status}")
                 self.next_try = time.time() + RETRY_S
                 return
             if self.key == key:
@@ -170,8 +193,8 @@ class BodySites:
                 self.status = ""
                 self.log.info(f"Mapa: {len(self.sites)} sitios de la flota en {key[1]}")
         except Exception as e:
-            self.status = "Mapa: sin conexión con la hoja"
-            self.log.info(f"Sitios del cuerpo: {e}")
+            self.status = "Mapa: " + explain_error(e)
+            self.log.warning(f"Sitios del cuerpo: {type(e).__name__}: {e}")
             self.next_try = time.time() + RETRY_S
         finally:
             self.busy = False
