@@ -230,7 +230,11 @@ def _update_targets(view_items: list) -> None:
     items = sorted(view_items, key=lambda x: (not skull_sites.usable(x), x["dist"]))[:25]
     ids = {}
     for x in items:
-        ids[f"{x['label']} · {skull_sites.fmt_dist(x['dist'])}"] = str(x.get("id"))
+        # Sin distancia: el menú no se rehace al moverte y se quedaría vieja (la buena está en el mapa)
+        name = x["label"] + (f" · zona {x['zone']}" if x.get("zone") not in (None, "") else "")
+        while name in ids:
+            name += " "
+        ids[name] = str(x.get("id"))
     keys = tuple(sorted(str(x.get("id")) for x in items))
     if keys == S.target_keys:
         return                     # mismos sitios: no se reconstruye el menú (las distancias se ven en el mapa)
