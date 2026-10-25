@@ -27,6 +27,7 @@ if _here not in sys.path:
 
 import skull_tracker  # noqa: E402
 import skull_uploader  # noqa: E402
+import skull_updater  # noqa: E402
 
 CFG_URL = "skullmining_url"
 CFG_TOKEN = "skullmining_token"
@@ -43,6 +44,9 @@ class _State:
     token_var: Optional[tk.StringVar] = None
     alias_var: Optional[tk.StringVar] = None
     enabled_var: Optional[tk.IntVar] = None
+    updater = None
+    upd_btn = None
+    upd_shown = None
 
 
 S = _State()
@@ -87,6 +91,8 @@ def plugin_start3(plugin_dir: str) -> str:
     S.tracker = skull_tracker.Tracker(_emit, live_path=os.path.join(plugin_dir, "live_session.json"),
                                       state_path=os.path.join(plugin_dir, "zone_state.json"))
     logger.info(f"Skull Mining {skull_tracker.PLUGIN_VERSION} iniciado")
+    S.updater = skull_updater.Updater(plugin_dir, skull_tracker.PLUGIN_VERSION, logger)
+    S.updater.check_async()
     return "Skull Mining"
 
 
@@ -151,6 +157,45 @@ def _build_form(frame: tk.Frame) -> None:
     btns.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=(3, 0))
     tk.Button(btns, text="Enviar a web Skullmining", command=_send_form).pack(side=tk.LEFT)
     tk.Button(btns, text="Ir a web Skullmining", command=_open_web).pack(side=tk.LEFT, padx=(6, 0))
+    # Botón de actualización: solo aparece cuando hay una versión nueva en GitHub
+    S.upd_btn = tk.Button(btns, text="", command=_on_update)
+    S.upd_shown = None
+
+
+def _on_update() -> None:
+    u = getattr(S, "updater", None)
+    if u is None:
+        return
+    if u.state == skull_updater.AVAILABLE:
+        u.install_async()
+    elif u.state == skull_updater.ERROR:
+        webbrowser.open(skull_updater.RELEASES_PAGE)   # que lo instale a mano
+    _paint_update()
+
+
+def _paint_update() -> None:
+    """Pinta el botón según el estado de la actualización (desde el hilo de Tk, cada 2 s).
+    Los colores se repiten siempre porque el tema de EDMC puede cambiarlos."""
+    u, b = getattr(S, "updater", None), getattr(S, "upd_btn", None)
+    if u is None or b is None:
+        return
+    state = u.state
+    if state == skull_updater.IDLE:
+        if S.upd_shown is not None:
+            b.pack_forget()
+            S.upd_shown = None
+        return
+    ver = (u.latest or {}).get("version", "")
+    look = {
+        skull_updater.AVAILABLE: (f"Actualizar plugin (v{ver})", tk.NORMAL, "#ffd23f"),
+        skull_updater.DOWNLOADING: ("Actualizando…", tk.DISABLED, "#ffd23f"),
+        skull_updater.DONE: ("Reinicia EDMC", tk.DISABLED, "#4ade80"),
+    }.get(state, ("Error al actualizar: descárgalo a mano", tk.NORMAL, "#ff8f8f"))
+    b.configure(text=look[0], state=look[1], bg=look[2], fg="#000000", disabledforeground="#000000",
+                activebackground=look[2], activeforeground="#000000")
+    if S.upd_shown is None:
+        b.pack(side=tk.LEFT, padx=(6, 0))
+    S.upd_shown = state
 
 
 def _current_cmdr() -> str:
@@ -256,6 +301,10 @@ def _mark_state(state: str) -> None:
 
 
 def _refresh_label(frame: tk.Frame) -> None:
+    try:
+        _paint_update()
+    except Exception:
+        logger.exception("Botón de actualización")
     if S.label is not None and S.tracker is not None:
         _fill_form()
         txt = S.tracker.live_text()
