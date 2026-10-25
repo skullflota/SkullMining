@@ -180,7 +180,7 @@ def _build_form(frame: tk.Frame) -> None:
     for i, (label, var, opts, key) in enumerate(rows, start=1):
         tk.Label(f, text=label).grid(row=i, column=0, sticky=tk.W)
         om = tk.OptionMenu(f, var, *opts, command=lambda _v, k=key: S.touched.add(k))
-        om.configure(anchor=tk.W, highlightthickness=0)
+        _style_menu(om)
         om.grid(row=i, column=1, sticky=tk.EW, padx=(6, 0), pady=1)
 
     btns = tk.Frame(f)
@@ -196,14 +196,38 @@ def _build_form(frame: tk.Frame) -> None:
     tk.Label(ovr, text="Ir a").pack(side=tk.LEFT, padx=(8, 2))
     S.target_var = tk.StringVar(value=AUTO_TARGET)
     S.target_menu = tk.OptionMenu(ovr, S.target_var, AUTO_TARGET)
-    S.target_menu.configure(highlightthickness=0, width=22, anchor=tk.W)
+    _style_menu(S.target_menu)
+    S.target_menu.configure(width=190)   # en píxeles, al llevar imagen
     S.target_menu.pack(side=tk.LEFT)
     # Botón de actualización: solo aparece cuando hay una versión nueva en GitHub
     S.upd_btn = tk.Button(btns, text="", command=_on_update)
     S.upd_shown = None
 
 
-AUTO_TARGET = "Automático (el más cercano)"
+AUTO_TARGET = "Elegir sitio en zona"   # sin elegir nada, el mapa guía al sitio rentable más cercano
+
+
+def _circle_image() -> tk.PhotoImage:
+    """Circulito gris que sustituye al rectángulo de los desplegables de Tk."""
+    if getattr(S, "circle_img", None) is None:
+        n, c, r = 12, 5.5, 4.6
+        img = tk.PhotoImage(width=n, height=n)
+        for y in range(n):
+            for x in range(n):
+                d = ((x - c) ** 2 + (y - c) ** 2) ** 0.5
+                if abs(d - r) < 0.75:
+                    img.put("#7a7a7a", (x, y))
+        S.circle_img = img
+    return S.circle_img
+
+
+def _style_menu(om: tk.OptionMenu) -> None:
+    """Desplegable sin el rectángulo de la derecha, con un círculo en su lugar."""
+    try:
+        om.configure(indicatoron=False, image=_circle_image(), compound=tk.RIGHT, anchor=tk.W,
+                     highlightthickness=0, padx=6)
+    except tk.TclError:
+        om.configure(anchor=tk.W, highlightthickness=0)
 
 
 def _cfg_int(key: str, default: int) -> int:
