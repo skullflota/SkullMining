@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import sys
 import time
 import tkinter as tk
@@ -40,6 +41,8 @@ CFG_OV_X = "skullmining_overlay_x"
 CFG_OV_Y = "skullmining_overlay_y"
 CFG_OV_SIZE = "skullmining_overlay_size"
 CFG_OV_ALPHA = "skullmining_overlay_alpha"
+CFG_OV_BORDER = "skullmining_overlay_border"
+CFG_OV_DIST = "skullmining_overlay_dist"
 HIDE_GUI = {5, 6, 7, 8, 9, 10, 11}       # servicios, mapas, FSS, sondas, códice: el minimapa estorba
 
 
@@ -62,7 +65,7 @@ class _State:
     target_menu = None
     target_ids: dict = {}
     target_keys: tuple = ()
-    ov_cfg = (None, None, 300, 0.85)
+    ov_cfg = (None, None, 300, 0.85, None, None)
     ov_error_logged = False
 
 
@@ -220,7 +223,8 @@ def _load_ov_cfg() -> None:
             return None
     size = num(CFG_OV_SIZE) or 300
     alpha = num(CFG_OV_ALPHA) or 85
-    S.ov_cfg = (num(CFG_OV_X), num(CFG_OV_Y), size, alpha / 100.0)
+    color = lambda key: _cfg(key).strip() if re.match(r"^#[0-9a-fA-F]{6}$", _cfg(key).strip()) else None
+    S.ov_cfg = (num(CFG_OV_X), num(CFG_OV_Y), size, alpha / 100.0, color(CFG_OV_BORDER), color(CFG_OV_DIST))
 
 
 def _update_targets(view_items: list) -> None:
@@ -269,6 +273,17 @@ def _overlay_tick(frame: tk.Frame) -> None:
             logger.exception("Error en el minimapa")
             S.ov_error_logged = True
     frame.after(500, _overlay_tick, frame)
+
+
+def _pick_color(var: tk.StringVar, swatch: tk.Label, parent) -> None:
+    try:
+        from tkinter import colorchooser
+        _rgb, hexcol = colorchooser.askcolor(color=var.get(), parent=parent, title="Elige un color")
+    except Exception:
+        return
+    if hexcol:
+        var.set(hexcol)
+        swatch.configure(bg=hexcol)
 
 
 def _on_update() -> None:
@@ -471,7 +486,9 @@ def plugin_prefs(parent, cmdr: str, is_beta: bool):
     nb.Label(f, text=("Solo se envían sesiones en superficie en las que has refinado algo, y ventas de "
                       "minerales. Si pones un alias, se usa en lugar de tu nombre de comandante."),
              wraplength=500, justify=tk.LEFT).grid(row=4, column=0, columnspan=2, sticky=tk.W, padx=10, pady=8)
-    x, y, size, alpha = S.ov_cfg
+    x, y, size, alpha, border, dist = S.ov_cfg
+    S.ovborder_var = tk.StringVar(value=border or skull_overlay.ORANGE)
+    S.ovdist_var = tk.StringVar(value=dist or skull_overlay.WHITE)
     S.ovx_var = tk.StringVar(value="" if x is None else str(x))
     S.ovy_var = tk.StringVar(value="" if y is None else str(y))
     S.ovsize_var = tk.StringVar(value=str(size))
@@ -484,10 +501,17 @@ def plugin_prefs(parent, cmdr: str, is_beta: bool):
                                        ("Tamaño (px)", S.ovsize_var, 5), ("Opacidad (%)", S.ovalpha_var, 4))):
         nb.Label(g, text=lbl).grid(row=0, column=2 * i, sticky=tk.W, padx=(0 if i == 0 else 10, 4))
         _entry(g, textvariable=var, width=w).grid(row=0, column=2 * i + 1, sticky=tk.W)
+    c = nb.Frame(f)
+    c.grid(row=9, column=0, columnspan=2, sticky=tk.W, padx=10, pady=(4, 0))
+    for i, (lbl, var) in enumerate((("Color del borde", S.ovborder_var), ("Color de las distancias", S.ovdist_var))):
+        nb.Label(c, text=lbl).grid(row=0, column=3 * i, sticky=tk.W, padx=(0 if i == 0 else 16, 4))
+        sw = tk.Label(c, text="      ", bg=var.get(), relief=tk.SOLID, bd=1)
+        sw.grid(row=0, column=3 * i + 1)
+        tk.Button(c, text="Elegir…", command=lambda v=var, w=sw: _pick_color(v, w, c)).grid(row=0, column=3 * i + 2, padx=(4, 0))
     nb.Label(f, text="Deja X e Y vacíos para ponerlo arriba a la derecha. Se activa con la casilla «Mapa en el juego» "
                      "de la ventana de EDMC.", wraplength=500, justify=tk.LEFT).grid(row=7, column=0, columnspan=2,
                                                                                     sticky=tk.W, padx=10, pady=(2, 8))
-    nb.Label(f, text=f"Versión {skull_tracker.PLUGIN_VERSION}").grid(row=8, column=0, sticky=tk.W, padx=10)
+    nb.Label(f, text=f"Versión {skull_tracker.PLUGIN_VERSION}").grid(row=10, column=0, sticky=tk.W, padx=10, pady=(8, 0))
     return f
 
 
@@ -502,6 +526,8 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
                              (CFG_OV_ALPHA, S.ovalpha_var)):
                 v = var.get().strip()
                 config.set(key, v if v.lstrip("-").isdigit() else "")
+            config.set(CFG_OV_BORDER, S.ovborder_var.get())
+            config.set(CFG_OV_DIST, S.ovdist_var.get())
             _load_ov_cfg()
         logger.info("Ajustes de Skull Mining guardados (URL %s, clave %s)",
                     "sí" if S.url_var.get().strip() else "no", "sí" if S.token_var.get().strip() else "no")

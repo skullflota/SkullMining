@@ -53,16 +53,21 @@ class Overlay:
         self.size = 300
         self.pos = (None, None)
         self.alpha = 0.85
+        self.border = ORANGE      # color del borde (círculo, recuadro, N)
+        self.dist_color = WHITE   # color de las cifras de distancia
         self.visible = False
 
-    def configure(self, x: Optional[int], y: Optional[int], size: int, alpha: float) -> None:
+    def configure(self, x: Optional[int], y: Optional[int], size: int, alpha: float,
+                  border: Optional[str] = None, dist_color: Optional[str] = None) -> None:
+        self.border = border or ORANGE
+        self.dist_color = dist_color or WHITE
         changed = (x, y) != self.pos or size != self.size or abs(alpha - self.alpha) > 0.001
         self.pos, self.size, self.alpha = (x, y), max(180, min(700, int(size))), max(0.3, min(1.0, alpha))
         if changed and self.win is not None:
             self._destroy()   # se vuelve a crear con la nueva geometría en el siguiente dibujo
 
     def _create(self) -> None:
-        w, h = self.size, int(self.size * 1.32)
+        w, h = self.size, int(self.size * 1.32) + 4
         win = tk.Toplevel(self.root)
         win.withdraw()
         win.overrideredirect(True)
@@ -116,16 +121,16 @@ class Overlay:
         f_small = ("Segoe UI", max(8, int(S / 34)))
         f_norm = ("Segoe UI", max(9, int(S / 28)))
         f_bold = ("Segoe UI", max(10, int(S / 24)), "bold")
-        cv.create_oval(cx - r, cy - r, cx + r, cy + r, fill=PANEL, outline=ORANGE, width=2)
+        cv.create_oval(cx - r, cy - r, cx + r, cy + r, fill=PANEL, outline=self.border, width=2)
         if view is None:
             cv.create_text(cx, cy, text=note or "Acércate a un planeta", fill=WHITE, font=f_norm, width=S - 40)
             return
         scale, heading = view["scale"], view["heading"]
-        cv.create_oval(cx - r / 2, cy - r / 2, cx + r / 2, cy + r / 2, outline="#5a3a1e", dash=(3, 3))
-        cv.create_text(cx + 4, cy - r / 2 - 8, text=sitesmod.fmt_dist(scale / 2), fill="#c98a4f", font=f_small, anchor="w")
+        cv.create_oval(cx - r / 2, cy - r / 2, cx + r / 2, cy + r / 2, outline=self.border, dash=(2, 6))
+        cv.create_text(cx + 4, cy - r / 2 - 8, text=sitesmod.fmt_dist(scale / 2), fill=self.dist_color, font=f_small, anchor="w")
         # Norte en el borde (el mapa gira con el rumbo)
         a = math.radians(-heading)
-        cv.create_text(cx + (r - 10) * math.sin(a), cy - (r - 10) * math.cos(a), text="N", fill=ORANGE, font=f_small)
+        cv.create_text(cx + (r - 10) * math.sin(a), cy - (r - 10) * math.cos(a), text="N", fill=self.border, font=f_small)
 
         def at(item):
             k = min(item["dist"] / scale, 1.0) * (r - 8)
@@ -156,13 +161,17 @@ class Overlay:
         cv.create_polygon(cx, cy - 11, cx - 8, cy + 8, cx, cy + 3, cx + 8, cy + 8, fill=WHITE, outline="#000000")
         # Recuadro con el objetivo
         top = S + 6
-        cv.create_rectangle(4, top, S - 4, top + S * 0.30, fill=PANEL, outline=ORANGE)
+        # El recuadro acaba 4 px antes del final de la ventana: así se ve el borde de abajo
+        cv.create_rectangle(4, top, S - 4, top + S * 0.30, fill=PANEL, outline=self.border, width=2)
         if target:
             extra = f" · zona {target['zone']}" if target.get("zone") not in (None, "") else ""
             cv.create_text(12, top + 6, text="→ " + target["label"] + extra, fill=YELLOW, font=f_bold, anchor="nw",
                            width=S - 24)
-            cv.create_text(12, top + 6 + S * 0.09, anchor="nw", fill=WHITE, font=f_norm,
-                           text=f"{sitesmod.fmt_dist(target['dist'])} · {sitesmod.turn_text(target['rel'])}")
+            d_item = cv.create_text(12, top + 6 + S * 0.09, anchor="nw", fill=self.dist_color, font=f_bold,
+                                    text=sitesmod.fmt_dist(target["dist"]))
+            x2 = (cv.bbox(d_item) or (0, 0, 12 + S * 0.25, 0))[2]
+            cv.create_text(x2 + 6, top + 6 + S * 0.09, anchor="nw", fill=WHITE, font=f_norm,
+                           text="· " + sitesmod.turn_text(target["rel"]))
             nxt = view.get("next")
             if nxt:
                 cv.create_text(12, top + 6 + S * 0.17, anchor="nw", fill=GREY, font=f_small,
