@@ -124,6 +124,7 @@ def _build_form(frame: tk.Frame) -> None:
     S.min_var = tk.StringVar(value=NONE)
     S.amount_var = tk.StringVar(value=NONE)
     S.density_var = tk.StringVar(value=NONE)
+    S.one_var = tk.IntVar(value=0)
     S.touched = set()
 
     top = tk.Frame(f)
@@ -134,6 +135,7 @@ def _build_form(frame: tk.Frame) -> None:
     tk.Label(top, text="Taladros").pack(side=tk.LEFT)
     tk.Spinbox(top, from_=0, to=7, width=3, textvariable=S.rigs_var,
                command=lambda: S.touched.add("rigs")).pack(side=tk.LEFT, padx=4)
+    tk.Checkbutton(top, text="Solo cabe 1", variable=S.one_var, command=_one_rig_toggled).pack(side=tk.LEFT, padx=(8, 0))
 
     names = [NONE] + [es for _, es in skull_tracker.MINERALS]
     rows = (("Mineral", S.min_var, names, "mineral"),
@@ -186,6 +188,13 @@ def _open_web() -> None:
     webbrowser.open(web_login_url(WEB_URL, cmdr, key))
 
 
+def _one_rig_toggled() -> None:
+    """Marcar "Solo cabe 1" pone Taladros = 1 (no hace falta haber desplegado el taladro)."""
+    if S.one_var.get():
+        S.rigs_var.set("1")
+        S.touched.add("rigs")
+
+
 def _fill_form() -> None:
     """Rellena zona, mineral y taladros con lo que sabe el plugin, salvo lo que haya tocado el usuario."""
     if S.tracker is None or not hasattr(S, "zone_var"):
@@ -216,11 +225,13 @@ def _send_form() -> None:
     except ValueError:
         rigs = 0
     try:
-        msg = S.tracker.mark_site(zone, rigs, by_name.get(S.min_var.get()), get(S.amount_var), get(S.density_var))
+        msg = S.tracker.mark_site(zone, rigs, by_name.get(S.min_var.get()), get(S.amount_var), get(S.density_var),
+                                  one_rig=bool(S.one_var.get()))
         if msg.startswith("Enviado"):
             S.touched.clear()       # el siguiente sitio vuelve a rellenarse solo
             S.amount_var.set(NONE)
             S.density_var.set(NONE)
+            S.one_var.set(0)
     except Exception:
         logger.exception("Error enviando el sitio")
         msg = "No se pudo enviar el sitio"

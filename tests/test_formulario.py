@@ -32,6 +32,12 @@ def test_formulario():
     # en la nave aterrizada también vale
     tr.on_status(st("2026-10-13T10:05:00Z", 10.0, 20.0, T.FLAG_HAS_LATLONG | (1 << 1)))
     assert tr.mark_site(7, 0, "iridium", None, None).startswith("Enviado")
+    # v0.8.0: "Solo cabe 1" sin desplegar ningún taladro
+    msg = tr.mark_site(7, 0, "iridium", None, None, one_rig=True)
+    assert "solo cabe 1" in msg, msg
+    rec = [d for k, d in out if k == "mark"][-1]
+    assert rec["one_rig"] is True and rec["rigs"] == 1
+    assert [d for k, d in out if k == "mark"][0]["one_rig"] is False
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ from typing import Callable, Dict, List, Optional
 
 import skull_analysis as analysis
 
-PLUGIN_VERSION = "0.7.0"
+PLUGIN_VERSION = "0.8.0"
 
 # Bits de Flags / Flags2 del Status.json
 FLAG_HAS_LATLONG = 1 << 21
@@ -378,7 +378,8 @@ class Tracker:
             out["type"], out["rigs"] = best["main_type"], best["rigs"]
         return out
 
-    def mark_site(self, zone, rigs, mineral: Optional[str], amount: Optional[str], density: Optional[str]) -> str:
+    def mark_site(self, zone, rigs, mineral: Optional[str], amount: Optional[str], density: Optional[str],
+                  one_rig: bool = False) -> str:
         """Formulario "Enviar a web Skullmining": guarda el sitio donde estás con lo que dice el escáner."""
         s = self.status
         if not s.get("has_ll") or not (s.get("in_srv") or s.get("on_foot") or s.get("landed")):
@@ -387,6 +388,8 @@ class Tracker:
             return "Elige el mineral del sitio"
         if amount and amount not in AMOUNTS or density and density not in DENSITIES:
             return "Valor no válido"
+        if one_rig:
+            rigs = 1   # solo cabe un taladro: no hace falta desplegarlo para marcarlo
         lat, lon, body = s["lat"], s["lon"], s.get("body")
         R = s.get("radius") or 0.0
         session_tonnes = 0
@@ -399,6 +402,7 @@ class Tracker:
                "zone": zone if zone else self.current_zone(), "lat": lat, "lon": lon,
                "planet_radius_m": R, "type": mineral, "rigs": int(rigs) if rigs else None,
                "amount": amount or None, "density": density or None, "session_tonnes": session_tonnes,
+               "one_rig": bool(one_rig),
                "planet_class": info.get("planet_class"), "gravity_g": info.get("gravity_g"), "temp_k": info.get("temp_k"),
                "volcanism": info.get("volcanism"), "mining_locations_on_body": info.get("mining_locations"),
                "site_signal": self.last_site_signal["index"] if self.last_site_signal and self.last_site_signal.get("body") == body else None}
@@ -406,6 +410,8 @@ class Tracker:
             self.session.events.append({"t": t, "event": "SitioMarcado", "type": mineral, "lat": lat, "lon": lon})
         self.emit("mark", rec)
         name = dict(MINERALS).get(mineral, mineral)
+        if one_rig:
+            return f"Enviado a la web: {name}, solo cabe 1 taladro"
         return f"Enviado a la web: {name}" + (f", {rigs} taladros" if rigs else "")
 
     def mark_state(self, state: str) -> str:

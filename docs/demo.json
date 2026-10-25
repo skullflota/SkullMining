@@ -251,7 +251,9 @@
    "crh": 1900000,
    "_ago": {
     "created": 8
-   }
+   },
+   "oneRig": true,
+   "notWorth": true
   },
   {
    "id": "DEMO7",
@@ -338,6 +340,52 @@
     "regenerated": 2,
     "amountTime": 2,
     "densityTime": 30
+   }
+  },
+  {
+   "id": "DEMO9",
+   "system": "Otro sistema de ejemplo",
+   "body": "Otro sistema de ejemplo A 1",
+   "mineral": "Iridio",
+   "type": "iridium",
+   "price": 212000,
+   "lat": 3.1121999999999996,
+   "lon": -20.5521,
+   "rigs": 1,
+   "rigSpacing": 49.0,
+   "extent": 49.0,
+   "tpc": 10.9,
+   "value": 2310800,
+   "visits": 1,
+   "collections": 6,
+   "tonnes": 65,
+   "nearest": 610,
+   "nearestSame": null,
+   "terrain": "montañoso",
+   "speed": 5.8,
+   "signal": 2,
+   "bodySites": 4,
+   "planetClass": "High metal content body",
+   "gravity": 0.62,
+   "temp": 310,
+   "lastVisit": "2026-09-25T18:00:00Z",
+   "zone": 1,
+   "density": "Alta",
+   "densityTime": "2026-09-25T18:05:00Z",
+   "amount": "Alta",
+   "amountTonnes": 820,
+   "amountTime": "2026-09-28T20:17:00Z",
+   "volcanism": "ninguno",
+   "crh": null,
+   "_ago": {
+    "created": 20
+   },
+   "oneRig": true,
+   "oneRigAlt": {
+    "id": "DEMO5",
+    "rigs": 2,
+    "dist": 430,
+    "zone": 1
    }
   }
  ],

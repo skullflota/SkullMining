@@ -15,7 +15,7 @@
 var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 taladros a 103 m en la misma mancha (28-sep)
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '12';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '13';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
 // Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
 // el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
@@ -31,7 +31,7 @@ var HEADERS = {
              'Sitios minería en cuerpo', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Última visita', 'Último CMDR',
              'Zona', 'Densidad', 'Densidad fecha', 'Densidad CMDR', 'Agotado', 'Agotado CMDR',
              'Cantidad', 'Cantidad fecha', 'Cantidad CMDR', 'Cantidad t flota', 'Taladros marcados',
-             'Agotado desde', 'Regenerado', 'Regenerado CMDR', 'Creado', 'Cr/h', 'Descubierto por'],
+             'Agotado desde', 'Regenerado', 'Regenerado CMDR', 'Creado', 'Cr/h', 'Descubierto por', 'Solo 1 taladro'],
   'Visitas': ['SessionID', 'SiteID', 'Fecha', 'CMDR', 'Mineral', 'Taladros', 'Dist. mín entre taladros (m)',
               'Extensión (m)', 'Recogidas', 'Toneladas', 'T/recogida', 'Terreno zona', 'Vel. efectiva zona (m/s)',
               'Zona'],
@@ -325,7 +325,7 @@ var PUBLIC_SITE_FIELDS = {
   'Temp (K)': 'temp', 'Última visita': 'lastVisit', 'Zona': 'zone', 'Densidad': 'density',
   'Densidad fecha': 'densityTime', 'Agotado': 'depleted', 'Cantidad': 'amount', 'Cantidad fecha': 'amountTime',
   'Cantidad t flota': 'amountTonnes', 'Agotado desde': 'depletedSince', 'Regenerado': 'regenerated',
-  'Creado': 'created', 'Cr/h': 'crh'
+  'Creado': 'created', 'Cr/h': 'crh', 'Solo 1 taladro': 'oneRigBy'
 };
 
 function publicRanking_(callback, cmdr) {
@@ -349,6 +349,7 @@ function publicRanking_(callback, cmdr) {
   cv.slice(1).forEach(function (r) {
     volc[r[0] + '|' + r[1]] = { v: cvi >= 0 ? String(r[cvi] || '') : '', pc: cpi >= 0 ? String(r[cpi] || '') : '' };
   });
+  markOneRig_(sites, cv);
   sites.forEach(function (o) {
     var b = volc[o.system + '|' + o.body];
     if (!b) return;
@@ -416,6 +417,29 @@ function publicRanking_(callback, cmdr) {
     return ContentService.createTextOutput(callback + '(' + txt + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
   return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ------------------------------------------------------- sitios de un solo taladro
+// Un sitio donde solo cabe 1 taladro no compensa salvo que haya otro del mismo mineral con 2 o más
+// taladros cerca (ONE_RIG_NEAR_M) en el mismo cuerpo. Se calcula al leer, así siempre está al día.
+var ONE_RIG_NEAR_M = 1000;
+
+function markOneRig_(sites, cuerpos) {
+  var ch = cuerpos[0] || [], ri = ch.indexOf('Radio (m)'), radius = {};
+  cuerpos.slice(1).forEach(function (r) { if (ri >= 0 && Number(r[ri])) radius[r[0] + '|' + r[1]] = Number(r[ri]); });
+  sites.forEach(function (o) {
+    o.oneRig = !!o.oneRigBy && (Number(o.rigs) || 0) < 2;
+    delete o.oneRigBy;                        // en la web no se publica quién lo marcó
+    if (!o.oneRig) return;
+    var R = radius[o.system + '|' + o.body], best = null;
+    sites.forEach(function (x) {
+      if (x === o || x.system !== o.system || x.body !== o.body || x.type !== o.type || (Number(x.rigs) || 0) < 2) return;
+      var dd = R ? haversine_(o.lat, o.lon, x.lat, x.lon, R) : null;
+      if (dd !== null && dd > ONE_RIG_NEAR_M) return;
+      if (!best || (dd !== null && (best.dist === null || dd < best.dist))) best = { id: x.id, rigs: Number(x.rigs), dist: dd === null ? null : Math.round(dd), zone: x.zone };
+    });
+    if (best) o.oneRigAlt = best; else o.notWorth = true;
+  });
 }
 
 // ------------------------------------------------------- Aspirador de la Semana
@@ -796,6 +820,8 @@ function handleMark_(d) {
     var c = H2.indexOf('Taladros marcados') + 1, old = Number(sh2.getRange(r, c).getValue()) || 0;
     if (d.rigs > old) sh2.getRange(r, c).setValue(d.rigs);
   }
+  // "Solo cabe 1 taladro" (casilla del formulario, v0.8.0): quien lo marcó
+  if (d.one_rig) sh2.getRange(r, H2.indexOf('Solo 1 taladro') + 1).setValue(d.cmdr || 'si');
   if (d.zone !== null && d.zone !== undefined && d.zone !== '') {
     var cz = H2.indexOf('Zona') + 1;
     if (sh2.getRange(r, cz).getValue() === '') sh2.getRange(r, cz).setValue(d.zone);

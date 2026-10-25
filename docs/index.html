@@ -71,6 +71,11 @@
   .regenbox button { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--text); cursor: pointer; text-decoration: underline dotted; }
   .regenbox button:hover { color: var(--good); }
   .st-regen { background: #45d48322; color: var(--good); }
+  .st-nw { background: #ff5d5d22; color: #ff8f8f; }
+  .st-one { background: #ffc85722; color: var(--warn); }
+  .onehint { font-size: 12px; color: var(--warn); margin-top: 3px; }
+  .zm .nw { color: #ff8f8f; text-decoration: line-through; text-decoration-thickness: 1px; }
+  .zs .nwc { color: #ff8f8f; }
   .regenhint { color: var(--muted); font-size: 12px; margin-top: 3px; line-height: 1.25; white-space: normal; max-width: 230px; }
   .nodata { background: var(--panel); border: 1px solid var(--warn); color: var(--text); border-radius: var(--radius); padding: 14px 16px; margin: 14px 0; }
   .nodata b { color: var(--warn); }
@@ -425,6 +430,7 @@
     <p><b>Quedan ≈ … t</b> es una estimación de lo que le queda al sitio: taladros × toneladas por taladro según la densidad (alta 125–175 t, media el doble, baja el triple) × la parte que queda según la cantidad marcada (alta 57–100 %, media 27–67 %, baja 0–34 %), menos lo que haya sacado la flota después de marcarla. Sin densidad o cantidad marcadas el rango es mucho más amplio. Son cifras medidas por el autor de <a href="https://github.com/Fumlop/EDRhinoSpotter">RhinoSpotter</a> en seis depósitos; las iremos ajustando con los datos de la flota.</p>
     <p>Cada planeta tiene varias <b>zonas de minería</b> (las señales "Planetary Mining Location"); dentro de cada zona hay sitios. El escáner del Rhino muestra dos cosas: la <b>densidad</b> (D: alta, media, baja), que es fija, y la <b>cantidad</b> de mineral que queda (C: alta, media, baja, agotado), que baja a medida que mina cualquier jugador. Las marcan los miembros con los botones del plugin; junto a la cantidad se guardan las toneladas que llevaba sacadas la flota, para estimar cuánto aguanta cada sitio. Si un sitio estaba agotado y alguien lo marca después con una cantidad (alta, media o baja), la web lo da por <b>regenerado</b>, lo avisa arriba durante unos días y apunta cuánto tardó. Como solo lo sabemos cuando alguien lo mira, el tiempo real es un rango; con cada caso la previsión de los sitios agotados será más fina.</p>
     <p>Un <b>sitio</b> es un depósito de un solo mineral (la mancha morada del escáner); puede medir más de 100 m y admitir varios taladros. Los taladros deben estar a <b>47 m</b> como mínimo entre sí. </p>
+    <p><b>⛔ No rentable</b> = alguien ha marcado con el plugin que en ese sitio solo cabe 1 taladro y no hay otro sitio del mismo mineral con 2 o más taladros a menos de 1 km en el mismo cuerpo. Si lo hay, el sitio sale como <b>Solo 1 taladro</b> y te dice dónde está el bueno. En las zonas, un mineral tachado ⛔ significa que todos sus sitios conocidos en esa zona son de 1 taladro. Se recalcula solo: si alguien encuentra un sitio mejor cerca, la marca desaparece.</p>
     <p><b>🏆 Aspirador de la Semana</b> = el comandante que más toneladas ha minado con el plugin entre dos reinicios semanales de los servidores (jueves a las 07:00 UTC, las 09:00 en España en horario de verano). Cuenta cada sesión por su hora de fin. El ganador se anuncia en Discord una vez, unas horas después del reinicio.</p>
     <p>Datos enviados por los miembros con el plugin <a href="https://github.com/skullflota/SkullMining">Skull Mining</a> para EDMC.</p>
   </footer>
@@ -674,6 +680,12 @@
       out += '<span class="st st-' + esc(a.toLowerCase()) + '" title="' + esc(tip) + '">C ' + esc(a) + "</span>" +
         (withWhen ? '<span class="st-when">' + (s.amountTonnes ? esc(s.amountTonnes) + " t · " : "") + ago(s.amountTime).text + "</span>" : "");
     }
+    if (s.notWorth) out += ' <span class="st st-nw" title="Solo cabe 1 taladro y no hay otro sitio de ' + esc(s.mineral) +
+      ' con 2 o más taladros a menos de 1 km">⛔ No rentable · 1 taladro</span>';
+    else if (s.oneRig) out += ' <span class="st st-one" title="Solo cabe 1 taladro">Solo 1 taladro</span>' +
+      (withWhen && s.oneRigAlt ? '<div class="onehint">→ Hay otro de ' + esc(s.mineral) + " con " + esc(s.oneRigAlt.rigs) + " taladros" +
+        (s.oneRigAlt.dist != null ? " a " + meters(s.oneRigAlt.dist) : " en este cuerpo") +
+        (s.oneRigAlt.zone != null && s.oneRigAlt.zone !== "" && String(s.oneRigAlt.zone) !== String(s.zone) ? " (zona " + esc(s.oneRigAlt.zone) + ")" : "") + "</div>" : "");
     var rg = recentRegen(s, 30);
     if (rg) out += ' <span class="st st-regen" title="Estaba agotado y alguien lo ha visto con mineral otra vez">♻ Regenerado' +
       (withWhen ? " " + ago(s.regenerated).text : "") + "</span>";
@@ -978,7 +990,7 @@
   var num0 = function (v) { return v == null || v === "" ? -1 : Number(v); };
   // Top 10 por Cr/hora: solo sitios minados de verdad (con sesiones), que no estén agotados
   function renderTop10() {
-    var list = state.sites.filter(function (s) { return !s.depleted && Number(s.crh) > 0; })
+    var list = state.sites.filter(function (s) { return !s.depleted && !s.notWorth && Number(s.crh) > 0; })
       .sort(function (a, b) { return num0(b.crh) - num0(a.crh) || num0(b.value) - num0(a.value); }).slice(0, 10);
     rankList("top10", "top10list", list, { pHead: "Cr/hora", p: function (s) { return credits(s.crh) + "/h"; },
       vHead: "Valor/vuelta", v: function (s) { return credits(s.value); },
@@ -1074,14 +1086,24 @@
         e.sites.forEach(function (s) { conf[s.mineral] = 1; });
         String(e.z.confirmed || "").split(",").forEach(function (m) { m = m.trim(); if (m) conf[m] = 1; });
         var manual = String(e.z.minerals || "").split(/[,;]/).map(function (m) { return m.trim(); }).filter(Boolean);
-        var list = manual.map(function (m) { return conf[m] ? "<b>" + esc(m) + "</b>" : esc(m); });
-        Object.keys(conf).forEach(function (m) { if (manual.indexOf(m) < 0) list.push("<b>" + esc(m) + "</b>"); });
+        // Mineral "no rentable" en esta zona: todos sus sitios conocidos son de 1 taladro sin otro bueno cerca
+        var byMin = {};
+        e.sites.forEach(function (s) { var o = byMin[s.mineral] = byMin[s.mineral] || { n: 0, nw: 0 }; o.n++; if (s.notWorth) o.nw++; });
+        var lbl = function (m) {
+          var o = byMin[m];
+          if (o && o.nw === o.n) return '<b class="nw" title="Todos los sitios conocidos de ' + esc(m) + ' en esta zona son de 1 taladro">' + esc(m) + "</b> ⛔";
+          return conf[m] ? "<b>" + esc(m) + "</b>" : esc(m);
+        };
+        var list = manual.map(lbl);
+        Object.keys(conf).forEach(function (m) { if (manual.indexOf(m) < 0) list.push(lbl(m)); });
+        var nwCount = e.sites.filter(function (s) { return s.notWorth; }).length;
         var best = e.sites.reduce(function (a, s) { return Math.max(a, Number(s.value) || 0); }, Number(e.z.best) || 0);
         var on = state.zoneFilter && state.zoneFilter.body === b.body && String(state.zoneFilter.zone) === String(n);
         return '<button type="button" class="zcard' + (on ? " on" : "") + '" data-body="' + esc(b.body) + '" data-zone="' + esc(n) + '">' +
           '<div class="zt"><span class="zn">Zona ' + esc(n) + "</span>" + (best ? '<span class="zb">' + credits(best) + "/vuelta</span>" : "") + "</div>" +
           '<div class="zm">' + (list.length ? list.join(" · ") : "minerales sin anotar") + "</div>" +
-          '<div class="zs">' + e.sites.length + (e.sites.length === 1 ? " sitio conocido" : " sitios conocidos") + "</div></button>";
+          '<div class="zs">' + e.sites.length + (e.sites.length === 1 ? " sitio conocido" : " sitios conocidos") +
+          (nwCount ? ' · <span class="nwc">' + nwCount + " no rentable" + (nwCount === 1 ? "" : "s") + "</span>" : "") + "</div></button>";
       }).join("");
       var total = b.total || (state.sites.filter(function (s) { return s.body === b.body; })[0] || {}).bodySites;
       return '<div class="zbody"><h3>' + esc(b.body) + "<small>" + Object.keys(b.zones).length + " zona" +
