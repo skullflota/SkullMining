@@ -16,7 +16,7 @@ from typing import Callable, Dict, List, Optional
 
 import skull_analysis as analysis
 
-PLUGIN_VERSION = "0.8.0"
+PLUGIN_VERSION = "0.9.0"
 
 # Bits de Flags / Flags2 del Status.json
 FLAG_HAS_LATLONG = 1 << 21
@@ -489,6 +489,8 @@ class Tracker:
             "on_foot": bool(flags2 & FLAG2_ON_FOOT),
             "alt_avg": bool(flags & FLAG_ALT_FROM_AVG_RADIUS),
             "landed": bool(flags & (1 << 1)),
+            "heading": entry.get("Heading"),
+            "gui": entry.get("GuiFocus", 0) or 0,
         }
         s = self.status
         on_surface = s["in_srv"] or s["on_foot"] or bool(flags & (1 << 1))  # bit 1 = aterrizado

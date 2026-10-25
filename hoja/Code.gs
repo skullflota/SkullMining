@@ -201,9 +201,10 @@ function doPost(e) {
 function doGet(e) {
   var p = (e && e.parameter) || {};
   // Lectura para la web: solo miembros de la flota (CMDR de la lista + clave de la flota)
-  if (p.view === 'ranking' || p.view === 'sell') {
+  if (p.view === 'ranking' || p.view === 'sell' || p.view === 'body') {
     var acc = checkAccess_(p.cmdr, p.key);
     if (!acc.ok) return jsonp_(acc, p.callback);
+    if (p.view === 'body') return jsonp_(bodySites_(p.system, p.body), p.callback);
     if (p.view === 'sell') return jsonp_(sellPlaces_(p.mineral, p.system), p.callback);
     ensureSchema_(false); maybePostVacuum_(); return publicRanking_(p.callback, p.cmdr);
   }
@@ -417,6 +418,31 @@ function publicRanking_(callback, cmdr) {
     return ContentService.createTextOutput(callback + '(' + txt + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
   return ContentService.createTextOutput(txt).setMimeType(ContentService.MimeType.JSON);
+}
+
+// Sitios de un cuerpo para el minimapa del plugin (v0.9.0): lo justo para dibujarlos y guiar
+function bodySites_(system, body) {
+  if (!system || !body) return { ok: false, error: 'body' };
+  var values = sheet_('Sitios').getDataRange().getValues();
+  var head = values.shift();
+  var sites = values.filter(function (r) { return r[0] && r[1] === system && r[2] === body; }).map(function (r) {
+    var o = {};
+    head.forEach(function (h, i) {
+      var k = PUBLIC_SITE_FIELDS[h];
+      if (!k) return;
+      var v = r[i];
+      if (v instanceof Date) v = v.toISOString();
+      o[k] = v === '' ? null : v;
+    });
+    return o;
+  });
+  var cv = sheet_('Cuerpos').getDataRange().getValues();
+  markOneRig_(sites, cv);
+  var keep = ['id', 'mineral', 'type', 'lat', 'lon', 'rigs', 'zone', 'value', 'price', 'depleted', 'amount', 'density',
+              'oneRig', 'notWorth', 'crh', 'visits'];
+  return { ok: true, system: system, body: body, updated: new Date().toISOString(), sites: sites.map(function (o) {
+    var x = {}; keep.forEach(function (k) { if (o[k] !== undefined && o[k] !== null) x[k] = o[k]; }); return x;
+  }) };
 }
 
 // ------------------------------------------------------- sitios de un solo taladro

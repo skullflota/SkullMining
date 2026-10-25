@@ -28,11 +28,19 @@ if _here not in sys.path:
 import skull_tracker  # noqa: E402
 import skull_uploader  # noqa: E402
 import skull_updater  # noqa: E402
+import skull_sites  # noqa: E402
+import skull_overlay  # noqa: E402
 
 CFG_URL = "skullmining_url"
 CFG_TOKEN = "skullmining_token"
 CFG_ALIAS = "skullmining_alias"
 CFG_ENABLED = "skullmining_enabled"
+CFG_OV = "skullmining_overlay"           # minimapa encima del juego (v0.9.0)
+CFG_OV_X = "skullmining_overlay_x"
+CFG_OV_Y = "skullmining_overlay_y"
+CFG_OV_SIZE = "skullmining_overlay_size"
+CFG_OV_ALPHA = "skullmining_overlay_alpha"
+HIDE_GUI = {5, 6, 7, 8, 9, 10, 11}       # servicios, mapas, FSS, sondas, códice: el minimapa estorba
 
 
 class _State:
@@ -47,6 +55,15 @@ class _State:
     updater = None
     upd_btn = None
     upd_shown = None
+    sites = None
+    overlay = None
+    ov_var = None
+    target_var = None
+    target_menu = None
+    target_ids: dict = {}
+    target_keys: tuple = ()
+    ov_cfg = (None, None, 300, 0.85)
+    ov_error_logged = False
 
 
 S = _State()
@@ -93,6 +110,9 @@ def plugin_start3(plugin_dir: str) -> str:
     logger.info(f"Skull Mining {skull_tracker.PLUGIN_VERSION} iniciado")
     S.updater = skull_updater.Updater(plugin_dir, skull_tracker.PLUGIN_VERSION, logger)
     S.updater.check_async()
+    S.sites = skull_sites.BodySites(logger, get_url=lambda: _cfg(CFG_URL), get_token=lambda: _cfg(CFG_TOKEN),
+                                    get_cmdr=_current_cmdr)
+    _load_ov_cfg()
     return "Skull Mining"
 
 
@@ -102,6 +122,11 @@ def plugin_stop() -> None:
         S.tracker.save_live(force=True)
     if S.uploader:
         S.uploader.stop()
+    if S.overlay is not None:
+        try:
+            S.overlay.close()
+        except Exception:
+            pass
 
 
 def plugin_app(parent: tk.Frame):
@@ -111,7 +136,9 @@ def plugin_app(parent: tk.Frame):
     S.label.grid(row=0, column=1, sticky=tk.EW)
     frame.columnconfigure(1, weight=1)
     _build_form(frame)
+    S.overlay = skull_overlay.Overlay(frame)
     frame.after(2000, _refresh_label, frame)
+    frame.after(1000, _overlay_tick, frame)
     return frame
 
 
@@ -157,9 +184,87 @@ def _build_form(frame: tk.Frame) -> None:
     btns.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=(3, 0))
     tk.Button(btns, text="Enviar a web Skullmining", command=_send_form).pack(side=tk.LEFT)
     tk.Button(btns, text="Ir a web Skullmining", command=_open_web).pack(side=tk.LEFT, padx=(6, 0))
+    # Minimapa encima del juego y objetivo al que guiar
+    ovr = tk.Frame(f)
+    ovr.grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=(3, 0))
+    S.ov_var = tk.IntVar(value=_cfg_int(CFG_OV, 0))
+    tk.Checkbutton(ovr, text="Mapa en el juego", variable=S.ov_var,
+                   command=lambda: config.set(CFG_OV, int(S.ov_var.get()))).pack(side=tk.LEFT)
+    tk.Label(ovr, text="Ir a").pack(side=tk.LEFT, padx=(8, 2))
+    S.target_var = tk.StringVar(value=AUTO_TARGET)
+    S.target_menu = tk.OptionMenu(ovr, S.target_var, AUTO_TARGET)
+    S.target_menu.configure(highlightthickness=0, width=22, anchor=tk.W)
+    S.target_menu.pack(side=tk.LEFT)
     # Botón de actualización: solo aparece cuando hay una versión nueva en GitHub
     S.upd_btn = tk.Button(btns, text="", command=_on_update)
     S.upd_shown = None
+
+
+AUTO_TARGET = "Automático (el más cercano)"
+
+
+def _cfg_int(key: str, default: int) -> int:
+    try:
+        v = config.get_int(key, default=default)
+        return default if v is None else int(v)
+    except Exception:
+        return default
+
+
+def _load_ov_cfg() -> None:
+    def num(key):
+        v = _cfg(key).strip()
+        try:
+            return int(v) if v else None
+        except ValueError:
+            return None
+    size = num(CFG_OV_SIZE) or 300
+    alpha = num(CFG_OV_ALPHA) or 85
+    S.ov_cfg = (num(CFG_OV_X), num(CFG_OV_Y), size, alpha / 100.0)
+
+
+def _update_targets(view_items: list) -> None:
+    """Rellena el desplegable "Ir a" con los sitios del planeta (los rentables primero)."""
+    if S.target_menu is None:
+        return
+    items = sorted(view_items, key=lambda x: (not skull_sites.usable(x), x["dist"]))[:25]
+    ids = {}
+    for x in items:
+        ids[f"{x['label']} · {skull_sites.fmt_dist(x['dist'])}"] = str(x.get("id"))
+    keys = tuple(sorted(str(x.get("id")) for x in items))
+    if keys == S.target_keys:
+        return                     # mismos sitios: no se reconstruye el menú (las distancias se ven en el mapa)
+    S.target_keys, S.target_ids = keys, ids
+    menu = S.target_menu["menu"]
+    menu.delete(0, "end")
+    for label in [AUTO_TARGET] + list(ids):
+        menu.add_command(label=label, command=lambda v=label: S.target_var.set(v))
+    if S.target_var.get() not in ids:
+        S.target_var.set(AUTO_TARGET)
+
+
+def _overlay_tick(frame: tk.Frame) -> None:
+    try:
+        on = bool(S.ov_var.get()) if S.ov_var is not None else False
+        st = S.tracker.status if S.tracker is not None else {}
+        if not on or S.overlay is None or not st.get("has_ll") or (st.get("gui") or 0) in HIDE_GUI:
+            if S.overlay is not None:
+                S.overlay.hide()
+        else:
+            system, body = S.tracker.system.get("name"), st.get("body")
+            S.sites.want(system, body)
+            sites = S.sites.all() if S.sites.key == (system, body) else []
+            target_id = S.target_ids.get(S.target_var.get()) if S.target_var is not None else None
+            view = skull_sites.build_view(st, sites, target_id, in_srv=bool(st.get("in_srv") or st.get("on_foot")))
+            if view:
+                _update_targets(view["items"])
+            S.overlay.configure(*S.ov_cfg)
+            S.overlay.draw(view, S.sites.status)
+    except Exception:
+        if not S.ov_error_logged:
+            logger.exception("Error en el minimapa")
+            S.ov_error_logged = True
+    frame.after(500, _overlay_tick, frame)
 
 
 def _on_update() -> None:
@@ -273,6 +378,12 @@ def _send_form() -> None:
         msg = S.tracker.mark_site(zone, rigs, by_name.get(S.min_var.get()), get(S.amount_var), get(S.density_var),
                                   one_rig=bool(S.one_var.get()))
         if msg.startswith("Enviado"):
+            st, tr = S.tracker.status, S.tracker
+            typ = by_name.get(S.min_var.get())
+            if S.sites is not None and st.get("lat") is not None:
+                S.sites.add_local(tr.system.get("name"), st.get("body"), {
+                    "id": f"nuevo-{int(time.time())}", "type": typ, "mineral": S.min_var.get(), "lat": st["lat"],
+                    "lon": st["lon"], "rigs": 1 if S.one_var.get() else (rigs or None), "zone": zone})
             S.touched.clear()       # el siguiente sitio vuelve a rellenarse solo
             S.amount_var.set(NONE)
             S.density_var.set(NONE)
@@ -356,7 +467,23 @@ def plugin_prefs(parent, cmdr: str, is_beta: bool):
     nb.Label(f, text=("Solo se envían sesiones en superficie en las que has refinado algo, y ventas de "
                       "minerales. Si pones un alias, se usa en lugar de tu nombre de comandante."),
              wraplength=500, justify=tk.LEFT).grid(row=4, column=0, columnspan=2, sticky=tk.W, padx=10, pady=8)
-    nb.Label(f, text=f"Versión {skull_tracker.PLUGIN_VERSION}").grid(row=5, column=0, sticky=tk.W, padx=10)
+    x, y, size, alpha = S.ov_cfg
+    S.ovx_var = tk.StringVar(value="" if x is None else str(x))
+    S.ovy_var = tk.StringVar(value="" if y is None else str(y))
+    S.ovsize_var = tk.StringVar(value=str(size))
+    S.ovalpha_var = tk.StringVar(value=str(int(round(alpha * 100))))
+    nb.Label(f, text="Mapa en el juego (necesita el juego en «ventana sin bordes»)").grid(
+        row=5, column=0, columnspan=2, sticky=tk.W, padx=10, pady=(10, 2))
+    g = nb.Frame(f)
+    g.grid(row=6, column=0, columnspan=2, sticky=tk.W, padx=10)
+    for i, (lbl, var, w) in enumerate((("Posición X", S.ovx_var, 6), ("Y", S.ovy_var, 6),
+                                       ("Tamaño (px)", S.ovsize_var, 5), ("Opacidad (%)", S.ovalpha_var, 4))):
+        nb.Label(g, text=lbl).grid(row=0, column=2 * i, sticky=tk.W, padx=(0 if i == 0 else 10, 4))
+        _entry(g, textvariable=var, width=w).grid(row=0, column=2 * i + 1, sticky=tk.W)
+    nb.Label(f, text="Deja X e Y vacíos para ponerlo arriba a la derecha. Se activa con la casilla «Mapa en el juego» "
+                     "de la ventana de EDMC.", wraplength=500, justify=tk.LEFT).grid(row=7, column=0, columnspan=2,
+                                                                                    sticky=tk.W, padx=10, pady=(2, 8))
+    nb.Label(f, text=f"Versión {skull_tracker.PLUGIN_VERSION}").grid(row=8, column=0, sticky=tk.W, padx=10)
     return f
 
 
@@ -366,6 +493,12 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
         config.set(CFG_TOKEN, S.token_var.get().strip())
         config.set(CFG_ALIAS, S.alias_var.get().strip())
         config.set(CFG_ENABLED, int(S.enabled_var.get()))
+        if getattr(S, "ovx_var", None) is not None:
+            for key, var in ((CFG_OV_X, S.ovx_var), (CFG_OV_Y, S.ovy_var), (CFG_OV_SIZE, S.ovsize_var),
+                             (CFG_OV_ALPHA, S.ovalpha_var)):
+                v = var.get().strip()
+                config.set(key, v if v.lstrip("-").isdigit() else "")
+            _load_ov_cfg()
         logger.info("Ajustes de Skull Mining guardados (URL %s, clave %s)",
                     "sí" if S.url_var.get().strip() else "no", "sí" if S.token_var.get().strip() else "no")
         if S.uploader:
