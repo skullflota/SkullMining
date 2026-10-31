@@ -15,7 +15,7 @@
 var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 taladros a 103 m en la misma mancha (28-sep)
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '14';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '15';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
 // Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
 // el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
@@ -32,7 +32,7 @@ var HEADERS = {
              'Zona', 'Densidad', 'Densidad fecha', 'Densidad CMDR', 'Agotado', 'Agotado CMDR',
              'Cantidad', 'Cantidad fecha', 'Cantidad CMDR', 'Cantidad t flota', 'Taladros marcados',
              'Agotado desde', 'Regenerado', 'Regenerado CMDR', 'Creado', 'Cr/h', 'Descubierto por', 'Solo 1 taladro',
-             'Taladros corregidos'],
+             'Taladros corregidos', 'Taladros marcados fecha'],
   'Visitas': ['SessionID', 'SiteID', 'Fecha', 'CMDR', 'Mineral', 'Taladros', 'Dist. mín entre taladros (m)',
               'Extensión (m)', 'Recogidas', 'Toneladas', 'T/recogida', 'Terreno zona', 'Vel. efectiva zona (m/s)',
               'Zona'],
@@ -706,10 +706,18 @@ function recomputeSite_(siteId, prices) {
   var cur = sh.getRange(r, 1, 1, H.length).getValues()[0];
   var set = function (n, v) { cur[H.indexOf(n)] = v; };
   var price = prices[String(cur[H.indexOf('Nombre interno')]).toLowerCase()] || 0;
+  // Taladros del sitio: manda lo ÚLTIMO que se sabe (la sesión más reciente o la última marca del formulario),
+  // así cualquier comandante corrige a la baja volviendo y poniendo menos. Lo normal es poner el máximo posible.
+  // "Taladros corregidos" (a mano en la hoja) manda sobre todo.
   var declared = Number(cur[H.indexOf('Taladros marcados')]) || 0;
-  var maxRigs = Math.max.apply(null, vals('Taladros').concat([declared]));
-  // "Taladros corregidos" (a mano en la hoja, o 1 con la casilla "Solo cabe 1") manda sobre lo medido:
-  // sirve para bajar un máximo que se contó mal o se marcó por error.
+  var declT = timeOf_(cur[H.indexOf('Taladros marcados fecha')]);
+  var lastVisit = rows.slice().sort(function (a, b) { return timeOf_(a[vc('Fecha')]) - timeOf_(b[vc('Fecha')]); })
+    .filter(function (x) { return Number(x[vc('Taladros')]) > 0; }).pop();
+  var lvRigs = lastVisit ? Number(lastVisit[vc('Taladros')]) : 0, lvT = lastVisit ? timeOf_(lastVisit[vc('Fecha')]) : 0;
+  var maxRigs;
+  if (declared && !declT) maxRigs = Math.max(lvRigs, declared);   // marca antigua, sin fecha: se respeta lo que había
+  else if (declared && declT >= lvT) maxRigs = declared;          // la marca es lo más reciente
+  else maxRigs = lvRigs;                                           // la sesión es lo más reciente (o no hay marca)
   var fixed = Number(cur[H.indexOf('Taladros corregidos')]) || 0;
   if (fixed > 0) maxRigs = fixed;
   var spacing = vals('Dist. mín entre taladros (m)');
@@ -848,14 +856,12 @@ function handleMark_(d) {
   }
   var sh2 = sheet_('Sitios'), H2 = HEADERS['Sitios'], r = findRow_('Sitios', 1, siteId);
   if (d.rigs) {
-    var c = H2.indexOf('Taladros marcados') + 1, old = Number(sh2.getRange(r, c).getValue()) || 0;
-    if (d.rigs > old) sh2.getRange(r, c).setValue(d.rigs);
+    // La última marca manda (también a la baja): se guarda con su fecha para compararla con las sesiones
+    sh2.getRange(r, H2.indexOf('Taladros marcados') + 1).setValue(d.rigs);
+    sh2.getRange(r, H2.indexOf('Taladros marcados fecha') + 1).setValue(d.time ? new Date(d.time) : new Date());
   }
-  // "Solo cabe 1 taladro" (casilla del formulario, v0.8.0): quien lo marcó
-  if (d.one_rig) {
-    sh2.getRange(r, H2.indexOf('Solo 1 taladro') + 1).setValue(d.cmdr || 'si');
-    sh2.getRange(r, H2.indexOf('Taladros corregidos') + 1).setValue(1);
-  }
+  // "Solo cabe 1 taladro" (casilla del formulario, v0.8.0): quien lo marcó (el plugin ya envía rigs = 1)
+  if (d.one_rig) sh2.getRange(r, H2.indexOf('Solo 1 taladro') + 1).setValue(d.cmdr || 'si');
   if (d.zone !== null && d.zone !== undefined && d.zone !== '') {
     var cz = H2.indexOf('Zona') + 1;
     if (sh2.getRange(r, cz).getValue() === '') sh2.getRange(r, cz).setValue(d.zone);
