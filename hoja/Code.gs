@@ -15,7 +15,7 @@
 var SITE_MATCH_M = 150;    // un depósito (un solo mineral) mide hasta ~100 m de radio; 2 taladros a 103 m en la misma mancha (28-sep)
 var ZONE_RADIUS_M = 10000; // zonas de varios km (más grandes en planetas grandes); se asigna la más cercana
 var TRACK_CHUNK = 45000;   // límite práctico por celda
-var SCHEMA_VERSION = '13';  // sube cuando se añaden columnas o pestañas
+var SCHEMA_VERSION = '14';  // sube cuando se añaden columnas o pestañas
 var WEB_URL = 'https://skullflota.github.io/SkullMining/';
 // Alto/Medio/Bajo es la DENSIDAD del sitio (fija, la genera el juego). Agotado es aparte:
 // el desgaste lo comparten todos los jugadores y un sitio agotado no se regenera.
@@ -31,7 +31,8 @@ var HEADERS = {
              'Sitios minería en cuerpo', 'Tipo planeta', 'Gravedad (g)', 'Temp (K)', 'Última visita', 'Último CMDR',
              'Zona', 'Densidad', 'Densidad fecha', 'Densidad CMDR', 'Agotado', 'Agotado CMDR',
              'Cantidad', 'Cantidad fecha', 'Cantidad CMDR', 'Cantidad t flota', 'Taladros marcados',
-             'Agotado desde', 'Regenerado', 'Regenerado CMDR', 'Creado', 'Cr/h', 'Descubierto por', 'Solo 1 taladro'],
+             'Agotado desde', 'Regenerado', 'Regenerado CMDR', 'Creado', 'Cr/h', 'Descubierto por', 'Solo 1 taladro',
+             'Taladros corregidos'],
   'Visitas': ['SessionID', 'SiteID', 'Fecha', 'CMDR', 'Mineral', 'Taladros', 'Dist. mín entre taladros (m)',
               'Extensión (m)', 'Recogidas', 'Toneladas', 'T/recogida', 'Terreno zona', 'Vel. efectiva zona (m/s)',
               'Zona'],
@@ -707,6 +708,10 @@ function recomputeSite_(siteId, prices) {
   var price = prices[String(cur[H.indexOf('Nombre interno')]).toLowerCase()] || 0;
   var declared = Number(cur[H.indexOf('Taladros marcados')]) || 0;
   var maxRigs = Math.max.apply(null, vals('Taladros').concat([declared]));
+  // "Taladros corregidos" (a mano en la hoja, o 1 con la casilla "Solo cabe 1") manda sobre lo medido:
+  // sirve para bajar un máximo que se contó mal o se marcó por error.
+  var fixed = Number(cur[H.indexOf('Taladros corregidos')]) || 0;
+  if (fixed > 0) maxRigs = fixed;
   var spacing = vals('Dist. mín entre taladros (m)');
   var tpc = median(vals('T/recogida'));
   var votes = {};
@@ -847,7 +852,10 @@ function handleMark_(d) {
     if (d.rigs > old) sh2.getRange(r, c).setValue(d.rigs);
   }
   // "Solo cabe 1 taladro" (casilla del formulario, v0.8.0): quien lo marcó
-  if (d.one_rig) sh2.getRange(r, H2.indexOf('Solo 1 taladro') + 1).setValue(d.cmdr || 'si');
+  if (d.one_rig) {
+    sh2.getRange(r, H2.indexOf('Solo 1 taladro') + 1).setValue(d.cmdr || 'si');
+    sh2.getRange(r, H2.indexOf('Taladros corregidos') + 1).setValue(1);
+  }
   if (d.zone !== null && d.zone !== undefined && d.zone !== '') {
     var cz = H2.indexOf('Zona') + 1;
     if (sh2.getRange(r, cz).getValue() === '') sh2.getRange(r, cz).setValue(d.zone);
