@@ -156,11 +156,12 @@ class BodySites:
 
     def add_local(self, system: str, body: str, site: dict) -> None:
         if self.key == (system, body):
-            self.local.append(site)
+            self.local.append(dict(site, _t=time.time()))
             self.next_try = time.time() + 20   # dar tiempo a la hoja y volver a pedir
             self.fetched_at = 0.0
 
     def fetch(self, key) -> None:
+        started = time.time()
         try:
             url, token, cmdr = self.get_url().strip(), self.get_token().strip(), self.get_cmdr().strip()
             if not url or not token or not cmdr or self.http_get is None:
@@ -189,6 +190,9 @@ class BodySites:
                 return
             if self.key == key:
                 self.sites = data.get("sites") or []
+                # Las marcas provisionales ya están en la hoja (como sitio nuevo o unidas a uno existente):
+                # se quitan para no ver el mismo sitio dos veces. Solo quedan las enviadas después de pedir.
+                self.local = [s for s in self.local if s.get("_t", 0) > started]
                 self.fetched_at = time.time()
                 self.status = ""
                 self.log.info(f"Mapa: {len(self.sites)} sitios de la flota en {key[1]}")

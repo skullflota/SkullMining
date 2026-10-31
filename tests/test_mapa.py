@@ -51,6 +51,9 @@ def test_descarga():
     assert [s["id"] for s in b.all()] == ["S1"] and calls[0]["view"] == "body" and calls[0]["cmdr"] == "Yo"
     b.add_local("Sis", "B1", {"id": "nuevo", "type": "platinum", "lat": 5.0, "lon": 6.0})
     assert [s["id"] for s in b.all()] == ["S1", "nuevo"]
+    time.sleep(0.01)
+    b.fetch(("Sis", "B1"))                                 # la hoja ya la tiene (unida al S1): no se ve dos veces
+    assert [s["id"] for s in b.all()] == ["S1"]
     b.want("Sis", "B2")                                    # otro cuerpo: se vacía y se pide de nuevo
     for _ in range(50):
         if not b.busy: break
