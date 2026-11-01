@@ -45,6 +45,14 @@ def _click_through(win: tk.Toplevel) -> None:
         pass
 
 
+def _fit_box(cv, box, top, content_bottom, max_bottom, S) -> None:
+    """Ajusta el alto del recuadro a su texto (sin pasarse del final de la ventana)."""
+    try:
+        cv.coords(box, 4, top, S - 4, min(max_bottom, max(content_bottom, top + S * 0.16)))
+    except Exception:
+        pass
+
+
 class Overlay:
     def __init__(self, root: tk.Misc):
         self.root = root
@@ -56,6 +64,7 @@ class Overlay:
         self.border = ORANGE      # color del borde (círculo, recuadro, N)
         self.dist_color = WHITE   # color de las cifras de distancia
         self.visible = False
+        self.win_h = int(self.size * 1.42) + 4
 
     def configure(self, x: Optional[int], y: Optional[int], size: int, alpha: float,
                   border: Optional[str] = None, dist_color: Optional[str] = None) -> None:
@@ -67,7 +76,8 @@ class Overlay:
             self._destroy()   # se vuelve a crear con la nueva geometría en el siguiente dibujo
 
     def _create(self) -> None:
-        w, h = self.size, int(self.size * 1.32) + 4
+        w, h = self.size, int(self.size * 1.42) + 4
+        self.win_h = h
         win = tk.Toplevel(self.root)
         win.withdraw()
         win.overrideredirect(True)
@@ -152,31 +162,49 @@ class Overlay:
                 cv.create_oval(x - 10, y - 10, x + 10, y + 10, outline=YELLOW, width=2)
             if (not outside and shown < 8) or is_t:
                 gap = 14 if is_t else 9
-                if x > S * 0.6:   # cerca del borde derecho: el texto a la izquierda del punto
-                    cv.create_text(x - gap, y, text=it["label"], fill=col, font=f_small, anchor="e")
-                else:
-                    cv.create_text(x + gap, y, text=it["label"], fill=col, font=f_small, anchor="w")
+                # Etiqueta a la derecha del punto; si no cabe, a la izquierda (medida real del texto)
+                t_id = cv.create_text(x + gap, y, text=it["label"], fill=col, font=f_small, anchor="w")
+                bb = cv.bbox(t_id)
+                if bb and bb[2] > S - 4:
+                    cv.delete(t_id)
+                    t_id = cv.create_text(x - gap, y, text=it["label"], fill=col, font=f_small, anchor="e")
+                    bb = cv.bbox(t_id)
+                    if bb and bb[0] < 4:   # tampoco cabe a la izquierda: se pega al borde que menos corta
+                        cv.move(t_id, 4 - bb[0], 0)
                 shown += 1
         # Tú, en el centro, mirando hacia arriba
         cv.create_polygon(cx, cy - 11, cx - 8, cy + 8, cx, cy + 3, cx + 8, cy + 8, fill=WHITE, outline="#000000")
-        # Recuadro con el objetivo
+        # Recuadro con el objetivo. Cada línea va debajo de lo que ocupe la anterior (los nombres largos ocupan 2 líneas).
         top = S + 6
-        # El recuadro acaba 4 px antes del final de la ventana: así se ve el borde de abajo
-        cv.create_rectangle(4, top, S - 4, top + S * 0.30, fill=PANEL, outline=self.border, width=2)
+        bottom = self.win_h - 4          # el recuadro acaba 4 px antes del final de la ventana: se ve el borde de abajo
+        box = cv.create_rectangle(4, top, S - 4, bottom, fill=PANEL, outline=self.border, width=2)
+
+        def below(item, pad=3):
+            bb = cv.bbox(item)
+            return (bb[3] if bb else top) + pad
+
         if target:
-            extra = f" · zona {target['zone']}" if target.get("zone") not in (None, "") else ""
-            cv.create_text(12, top + 6, text="→ " + target["label"] + extra, fill=YELLOW, font=f_bold, anchor="nw",
-                           width=S - 24)
-            d_item = cv.create_text(12, top + 6 + S * 0.09, anchor="nw", fill=self.dist_color, font=f_bold,
+            t1 = cv.create_text(12, top + 6, text="→ " + target["label"], fill=YELLOW, font=f_bold, anchor="nw",
+                                width=S - 24)
+            y2 = below(t1)
+            d_item = cv.create_text(12, y2, anchor="nw", fill=self.dist_color, font=f_bold,
                                     text=sitesmod.fmt_dist(target["dist"]))
             x2 = (cv.bbox(d_item) or (0, 0, 12 + S * 0.25, 0))[2]
-            cv.create_text(x2 + 6, top + 6 + S * 0.09, anchor="nw", fill=WHITE, font=f_norm,
-                           text="· " + sitesmod.turn_text(target["rel"]))
+            t2 = cv.create_text(x2 + 6, y2 + 2, anchor="nw", fill=WHITE, font=f_norm, width=S - 24 - x2,
+                                text="· " + sitesmod.turn_text(target["rel"]))
+            y3 = max(below(d_item), below(t2))
             nxt = view.get("next")
+            parts = []
+            if target.get("zone") not in (None, ""):
+                parts.append(f"Zona {target['zone']}")
             if nxt:
-                cv.create_text(12, top + 6 + S * 0.17, anchor="nw", fill=GREY, font=f_small,
-                               text=f"Siguiente: {nxt['label']} a {sitesmod.fmt_dist(nxt['dist'])}")
+                parts.append(f"Siguiente: {nxt['label']} a {sitesmod.fmt_dist(nxt['dist'])}")
+            last = t2
+            if parts:
+                last = cv.create_text(12, y3, anchor="nw", fill=GREY, font=f_small, width=S - 24, text=" · ".join(parts))
+            _fit_box(cv, box, top, below(last, 6), bottom, S)
         else:
-            cv.create_text(12, top + 8, anchor="nw", fill=WHITE, font=f_norm, width=S - 24,
-                           text=note or ("Sin sitios rentables conocidos en este planeta" if view["items"]
-                                         else "La flota no tiene sitios en este planeta"))
+            msg = cv.create_text(12, top + 8, anchor="nw", fill=WHITE, font=f_norm, width=S - 24,
+                                 text=note or ("Sin sitios rentables conocidos en este planeta" if view["items"]
+                                               else "La flota no tiene sitios en este planeta"))
+            _fit_box(cv, box, top, below(msg, 8), bottom, S)
