@@ -17,6 +17,7 @@ import skull_sites as sitesmod
 KEY = "#010203"            # color que Windows vuelve transparente
 ORANGE, YELLOW, WHITE, GREY = "#ff8a1f", "#ffd23f", "#f2f2f2", "#8c8c8c"
 RED, AMBER, PANEL = "#ff5d5d", "#ffc857", "#14161c"
+GREEN = "#4ade80"
 MINERAL_COLORS = ("#4fd1ff", "#b28dff", "#45d483", "#ff9de2", "#7cf0e0", "#9fb8ff", "#c7f08a", "#f0a3ff")   # sin amarillo: es el del objetivo
 
 
@@ -118,7 +119,8 @@ class Overlay:
         self._destroy()
 
     # ------------------------------------------------------------------ dibujo
-    def draw(self, view: Optional[dict], note: str = "") -> None:
+    def draw(self, view: Optional[dict], note: str = "", rigs: Optional[dict] = None) -> None:
+        """rigs: taladros colocados por el comandante (skull_rigs.RigPlanner.evaluate + 'msg')."""
         if self.win is None:
             self._create()
         if not self.visible:
@@ -172,6 +174,20 @@ class Overlay:
                     if bb and bb[0] < 4:   # tampoco cabe a la izquierda: se pega al borde que menos corta
                         cv.move(t_id, 4 - bb[0], 0)
                 shown += 1
+        # Taladros colocados (v0.10.0): cuadrado numerado y círculo de 47 m; rojo si estás dentro
+        if rigs and rigs.get("count"):
+            import skull_rigs
+            ring_px = skull_rigs.MIN_SPACING_M / scale * (r - 8)
+            for rg in rigs["rigs"]:
+                x, y, outside = at(rg)
+                if outside:
+                    cv.create_rectangle(x - 3, y - 3, x + 3, y + 3, outline=WHITE)
+                    continue
+                inside = rg["dist"] < skull_rigs.MIN_SPACING_M
+                cv.create_oval(x - ring_px, y - ring_px, x + ring_px, y + ring_px,
+                               outline=RED if inside else GREEN, width=2 if inside else 1, dash=(4, 3))
+                cv.create_rectangle(x - 5, y - 5, x + 5, y + 5, fill=WHITE, outline="#000000")
+                cv.create_text(x, y - 13, text=str(rg["n"]), fill=WHITE, font=f_small)
         # Tú, en el centro, mirando hacia arriba
         cv.create_polygon(cx, cy - 11, cx - 8, cy + 8, cx, cy + 3, cx + 8, cy + 8, fill=WHITE, outline="#000000")
         # Recuadro con el objetivo. Cada línea va debajo de lo que ocupe la anterior (los nombres largos ocupan 2 líneas).
@@ -183,7 +199,25 @@ class Overlay:
             bb = cv.bbox(item)
             return (bb[3] if bb else top) + pad
 
-        if target:
+        y_rig = top + 6
+        rig_mode = bool(rigs and (rigs.get("count") or rigs.get("msg")))
+        if rig_mode:
+            import skull_rigs
+            if rigs.get("msg"):
+                m_id = cv.create_text(12, y_rig, text=rigs["msg"], fill=YELLOW, font=f_bold, anchor="nw", width=S - 24)
+                y_rig = below(m_id)
+            if rigs.get("count"):
+                s_id = cv.create_text(12, y_rig, text=skull_rigs.status_text(rigs), font=f_bold, anchor="nw",
+                                      width=S - 24, fill=GREEN if rigs["ok"] else RED)
+                y_rig = below(s_id, 6)
+        if target and rig_mode:
+            # Con taladros en marcha, el objetivo va en una sola línea pequeña
+            last = cv.create_text(12, y_rig, anchor="nw", fill=GREY, font=f_small, width=S - 24,
+                                  text=f"Objetivo: {target['label']} a {sitesmod.fmt_dist(target['dist'])}")
+            _fit_box(cv, box, top, below(last, 6), bottom, S)
+        elif rig_mode:
+            _fit_box(cv, box, top, y_rig + 2, bottom, S)
+        elif target:
             t1 = cv.create_text(12, top + 6, text="→ " + target["label"], fill=YELLOW, font=f_bold, anchor="nw",
                                 width=S - 24)
             y2 = below(t1)

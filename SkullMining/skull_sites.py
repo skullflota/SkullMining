@@ -20,7 +20,7 @@ except ImportError:  # pragma: no cover
 
 REFRESH_S = 300            # volver a pedir los sitios del cuerpo cada 5 min
 RETRY_S = 60               # si falla, reintentar al minuto
-SCALES_M = (250, 500, 1000, 2000, 5000, 10000, 25000, 50000, 100000, 250000)
+SCALES_M = (100, 250, 500, 1000, 2000, 5000, 10000, 25000, 50000, 100000, 250000)
 
 
 def haversine_m(lat1, lon1, lat2, lon2, R) -> float:

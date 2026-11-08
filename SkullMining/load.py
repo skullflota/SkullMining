@@ -31,6 +31,7 @@ import skull_uploader  # noqa: E402
 import skull_updater  # noqa: E402
 import skull_sites  # noqa: E402
 import skull_overlay  # noqa: E402
+import skull_rigs  # noqa: E402
 
 CFG_URL = "skullmining_url"
 CFG_TOKEN = "skullmining_token"
@@ -43,6 +44,7 @@ CFG_OV_SIZE = "skullmining_overlay_size"
 CFG_OV_ALPHA = "skullmining_overlay_alpha"
 CFG_OV_BORDER = "skullmining_overlay_border"
 CFG_OV_DIST = "skullmining_overlay_dist"
+CFG_RIG_BTN = "skullmining_rig_button"     # botón del ratón para marcar taladros (v0.10.0)
 HIDE_GUI = {5, 6, 7, 8, 9, 10, 11}       # servicios, mapas, FSS, sondas, códice: el minimapa estorba
 
 
@@ -67,6 +69,10 @@ class _State:
     target_keys: tuple = ()
     ov_cfg = (None, None, 300, 0.85, None, None)
     ov_error_logged = False
+    rigs = skull_rigs.RigPlanner()
+    rig_det = skull_rigs.PressDetector()
+    rig_vk = skull_rigs.BUTTONS[skull_rigs.DEFAULT_BUTTON]
+    rig_error_logged = False
 
 
 S = _State()
@@ -116,6 +122,7 @@ def plugin_start3(plugin_dir: str) -> str:
     S.sites = skull_sites.BodySites(logger, get_url=lambda: _cfg(CFG_URL), get_token=lambda: _cfg(CFG_TOKEN),
                                     get_cmdr=_current_cmdr)
     _load_ov_cfg()
+    _load_rig_cfg()
     return "Skull Mining"
 
 
@@ -142,6 +149,7 @@ def plugin_app(parent: tk.Frame):
     S.overlay = skull_overlay.Overlay(frame)
     frame.after(2000, _refresh_label, frame)
     frame.after(1000, _overlay_tick, frame)
+    frame.after(1000, _rig_tick, frame)
     return frame
 
 
@@ -199,6 +207,7 @@ def _build_form(frame: tk.Frame) -> None:
     _style_menu(S.target_menu)
     S.target_menu.configure(width=190)   # en píxeles, al llevar imagen
     S.target_menu.pack(side=tk.LEFT)
+    tk.Button(ovr, text="Borrar taladros", command=lambda: S.rigs.clear(say=True)).pack(side=tk.LEFT, padx=(8, 0))
     # Botón de actualización: solo aparece cuando hay una versión nueva en GitHub
     S.upd_btn = tk.Button(btns, text="", command=_on_update)
     S.upd_shown = None
@@ -275,6 +284,48 @@ def _update_targets(view_items: list) -> None:
         S.target_var.set(AUTO_TARGET)
 
 
+def _load_rig_cfg() -> None:
+    name = _cfg(CFG_RIG_BTN).strip() or skull_rigs.DEFAULT_BUTTON
+    S.rig_vk = skull_rigs.BUTTONS.get(name, skull_rigs.BUTTONS[skull_rigs.DEFAULT_BUTTON])
+
+
+def _rig_tick(frame: tk.Frame) -> None:
+    """Cada 50 ms en el Rhino: clic de la rueda mantenido = taladro aquí; doble clic = deshacer."""
+    try:
+        st = S.tracker.status if S.tracker is not None else {}
+        if st.get("has_ll") and st.get("body"):
+            S.rigs.set_body(st.get("body"))
+        if st.get("in_srv") and st.get("has_ll") and st.get("lat") is not None and S.rig_vk:
+            g = S.rig_det.update(skull_rigs.button_pressed(S.rig_vk))
+            if g == "hold":
+                n = S.rigs.add(st["lat"], st["lon"], st.get("body"))
+                logger.info(f"Taladro {n} marcado en {st['lat']:.6f}, {st['lon']:.6f}")
+            elif g == "double":
+                S.rigs.undo()
+        else:
+            S.rig_det.update(False)
+    except Exception:
+        if not S.rig_error_logged:
+            logger.exception("Error marcando taladros")
+            S.rig_error_logged = True
+    frame.after(50, _rig_tick, frame)
+
+
+def _rig_view(st: dict, view):
+    """Taladros colocados para el mapa; con alguno, la escala baja para que se vean los círculos de 47 m."""
+    msg = S.rigs.message()
+    if not S.rigs.rigs and not msg:
+        return None
+    ev = {"rigs": [], "nearest": None, "ok": True, "missing": 0, "count": 0}
+    if S.rigs.rigs and st.get("radius") and st.get("lat") is not None:
+        ev = S.rigs.evaluate(st["lat"], st["lon"], st.get("heading") or 0.0, st["radius"])
+        if view is not None and st.get("in_srv"):
+            far = ev["nearest"]["dist"] if ev["nearest"] else 0
+            view["scale"] = 100 if far < 85 else skull_sites.nice_scale(far, 100)
+    ev["msg"] = msg
+    return ev
+
+
 def _overlay_tick(frame: tk.Frame) -> None:
     try:
         on = bool(S.ov_var.get()) if S.ov_var is not None else False
@@ -291,7 +342,7 @@ def _overlay_tick(frame: tk.Frame) -> None:
             if view:
                 _update_targets(view["items"])
             S.overlay.configure(*S.ov_cfg)
-            S.overlay.draw(view, S.sites.status)
+            S.overlay.draw(view, S.sites.status, _rig_view(st, view))
     except Exception:
         if not S.ov_error_logged:
             logger.exception("Error en el minimapa")
@@ -525,6 +576,13 @@ def plugin_prefs(parent, cmdr: str, is_beta: bool):
                                        ("Tamaño (px)", S.ovsize_var, 5), ("Opacidad (%)", S.ovalpha_var, 4))):
         nb.Label(g, text=lbl).grid(row=0, column=2 * i, sticky=tk.W, padx=(0 if i == 0 else 10, 4))
         _entry(g, textvariable=var, width=w).grid(row=0, column=2 * i + 1, sticky=tk.W)
+    rb = nb.Frame(f)
+    rb.grid(row=11, column=0, columnspan=2, sticky=tk.W, padx=10, pady=(10, 0))
+    nb.Label(rb, text="Marcar taladro colocado (mantener 1 s; doble clic = deshacer):").pack(side=tk.LEFT)
+    S.rigbtn_var = tk.StringVar(value=_cfg(CFG_RIG_BTN).strip() or skull_rigs.DEFAULT_BUTTON)
+    om = tk.OptionMenu(rb, S.rigbtn_var, *skull_rigs.BUTTONS)
+    _style_menu(om)
+    om.pack(side=tk.LEFT, padx=(6, 0))
     c = nb.Frame(f)
     c.grid(row=9, column=0, columnspan=2, sticky=tk.W, padx=10, pady=(4, 0))
     for i, (lbl, var) in enumerate((("Color del borde", S.ovborder_var), ("Color de las distancias", S.ovdist_var))):
@@ -535,7 +593,7 @@ def plugin_prefs(parent, cmdr: str, is_beta: bool):
     nb.Label(f, text="Deja X e Y vacíos para ponerlo arriba a la derecha. Se activa con la casilla «Mapa en el juego» "
                      "de la ventana de EDMC.", wraplength=500, justify=tk.LEFT).grid(row=7, column=0, columnspan=2,
                                                                                     sticky=tk.W, padx=10, pady=(2, 8))
-    nb.Label(f, text=f"Versión {skull_tracker.PLUGIN_VERSION}").grid(row=10, column=0, sticky=tk.W, padx=10, pady=(8, 0))
+    nb.Label(f, text=f"Versión {skull_tracker.PLUGIN_VERSION}").grid(row=12, column=0, sticky=tk.W, padx=10, pady=(8, 0))
     return f
 
 
@@ -553,6 +611,9 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
             config.set(CFG_OV_BORDER, S.ovborder_var.get())
             config.set(CFG_OV_DIST, S.ovdist_var.get())
             _load_ov_cfg()
+        if getattr(S, "rigbtn_var", None) is not None:
+            config.set(CFG_RIG_BTN, S.rigbtn_var.get())
+            _load_rig_cfg()
         logger.info("Ajustes de Skull Mining guardados (URL %s, clave %s)",
                     "sí" if S.url_var.get().strip() else "no", "sí" if S.token_var.get().strip() else "no")
         if S.uploader:
@@ -565,6 +626,8 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
     try:
         S.tracker.set_context(cmdr, system, state)
         S.tracker.on_journal(cmdr, entry)
+        if entry.get("event") in ("DockSRV", "Died", "Shutdown"):
+            S.rigs.clear()      # los taladros marcados son de esta bajada con el Rhino
     except Exception:
         logger.exception("Error procesando evento del journal")
     return None
