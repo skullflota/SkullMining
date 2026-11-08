@@ -35,6 +35,9 @@ def test_versions():
     assert U.latest_from_api(api("v0.9.0", url="https://evil.example/x.zip")) is None
     assert U.latest_from_api(api("v0.9.0", name="otra-cosa.zip")) is None
     assert U.latest_from_api(dict(api("v0.9.0"), draft=True)) is None
+    # etiqueta mal escrita: manda el nombre del zip
+    assert U.latest_from_api(api("v.010.1", name="SkullMining-v0.10.1.zip"))["version"] == "0.10.1"
+    assert U.parse_version(U.latest_from_api(api("v.010.1", name="SkullMining-v0.10.1.zip"))["version"]) == U.parse_version("0.10.1")
 
 
 def test_check_and_install():

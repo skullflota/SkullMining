@@ -55,7 +55,10 @@ def latest_from_api(data: dict) -> Optional[dict]:
     for a in data.get("assets") or []:
         name, url = str(a.get("name") or ""), str(a.get("browser_download_url") or "")
         if ASSET_RE.match(name) and _host_ok(url):
-            return {"version": tag.lstrip("vV"), "url": url}
+            # La versión sale del nombre del zip (SkullMining-v0.10.1.zip), no de la etiqueta escrita a mano:
+            # una etiqueta como "v.010.1" haría creer que siempre hay una versión nueva.
+            m = re.search(r"v?(\d+(?:\.\d+)*)\.zip$", name, re.I)
+            return {"version": m.group(1) if m else tag.lstrip("vV."), "url": url}
     return None
 
 
