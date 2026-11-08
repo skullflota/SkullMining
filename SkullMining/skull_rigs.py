@@ -16,7 +16,7 @@ import skull_sites as sitesmod
 
 MIN_SPACING_M = 47.0      # separación mínima entre taladros (medida en el juego)
 # Entre posiciones del Rhino hace falta más: el taladro queda delante del Rhino. Se cambia en Ajustes.
-DEFAULT_GUIDE_M = 60
+DEFAULT_GUIDE_M = 75   # la comunidad mide 65-80 m entre taladros (r/EliteDangerous, "Rig distance requirements kinda suck")
 HOLD_S = 1.0              # pulsación larga = marcar
 DOUBLE_S = 0.45           # dos clics cortos en este tiempo = deshacer
 SHORT_MAX_S = 0.35        # un "clic" corto dura menos que esto

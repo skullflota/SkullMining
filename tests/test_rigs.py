@@ -29,7 +29,7 @@ def test_gestos():
 
 def test_distancias():
     p = G.RigPlanner()
-    assert p.min_m == 60
+    assert p.min_m == 75
     p.min_m = 47
     p.add(0, 0, "B 1")
     ev = p.evaluate(0, m(30), 90, R)
