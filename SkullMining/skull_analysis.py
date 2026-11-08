@@ -21,6 +21,9 @@ MIN_RIG_SPACING_M = 47.0
 # Dos recogidas a menos de la mitad de esa distancia son la misma plataforma
 # (el error de posición llega a ~20 m si el Rhino se mueve mientras refina).
 RIG_CLUSTER_RADIUS_M = MIN_RIG_SPACING_M / 2
+# Dos "plataformas" del mismo mineral a menos de esto son la misma: físicamente no caben tan cerca (47 m).
+# Pasa al llegar al mismo taladro desde lados distintos (la recogida se marca donde está el Rhino).
+RIG_MERGE_M = MIN_RIG_SPACING_M * 0.9
 # Un sitio = zona de un solo mineral de ~50 m como mucho (según Carlos). Plataformas del
 # mismo mineral enlazadas a menos de esta distancia forman el mismo sitio.
 # Un depósito del juego mide hasta ~100 m de radio (dato del juego) y en él caben varias plataformas.
@@ -132,6 +135,24 @@ def cluster_rigs(refined: List[dict], radius_m: float, cluster_radius_m: float =
         best["pts"].append((col["lat"], col["lon"]))
         best["cols"].append(col)
         best["lat"], best["lon"] = _centroid(best["pts"])
+
+    # Unir las que quedaron demasiado cerca (no pueden ser dos taladros): siempre el par más cercano primero
+    while True:
+        pair, pair_d = None, None
+        for i in range(len(clusters)):
+            for j in range(i + 1, len(clusters)):
+                a, b = clusters[i], clusters[j]
+                if a["main_type"] != b["main_type"]:
+                    continue
+                d = haversine_m(a["lat"], a["lon"], b["lat"], b["lon"], radius_m)
+                if d < RIG_MERGE_M and (pair_d is None or d < pair_d):
+                    pair, pair_d = (i, j), d
+        if pair is None:
+            break
+        a, b = clusters[pair[0]], clusters.pop(pair[1])
+        a["pts"] += b["pts"]
+        a["cols"] = sorted(a["cols"] + b["cols"], key=lambda c: c["start"])
+        a["lat"], a["lon"] = _centroid(a["pts"])
 
     out = []
     for i, c in enumerate(clusters):
