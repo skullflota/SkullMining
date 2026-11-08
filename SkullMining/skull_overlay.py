@@ -177,13 +177,14 @@ class Overlay:
         # Taladros colocados (v0.10.0): cuadrado numerado y círculo de 47 m; rojo si estás dentro
         if rigs and rigs.get("count"):
             import skull_rigs
-            ring_px = skull_rigs.MIN_SPACING_M / scale * (r - 8)
+            min_m = rigs.get("min") or skull_rigs.MIN_SPACING_M
+            ring_px = min_m / scale * (r - 8)
             for rg in rigs["rigs"]:
                 x, y, outside = at(rg)
                 if outside:
                     cv.create_rectangle(x - 3, y - 3, x + 3, y + 3, outline=WHITE)
                     continue
-                inside = rg["dist"] < skull_rigs.MIN_SPACING_M
+                inside = rg["dist"] < min_m
                 cv.create_oval(x - ring_px, y - ring_px, x + ring_px, y + ring_px,
                                outline=RED if inside else GREEN, width=2 if inside else 1, dash=(4, 3))
                 cv.create_rectangle(x - 5, y - 5, x + 5, y + 5, fill=WHITE, outline="#000000")

@@ -29,6 +29,8 @@ def test_gestos():
 
 def test_distancias():
     p = G.RigPlanner()
+    assert p.min_m == 60
+    p.min_m = 47
     p.add(0, 0, "B 1")
     ev = p.evaluate(0, m(30), 90, R)
     assert not ev["ok"] and round(ev["missing"]) == 17 and "Aléjate 17 m" in G.status_text(ev)

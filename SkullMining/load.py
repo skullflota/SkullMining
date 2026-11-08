@@ -44,6 +44,7 @@ CFG_OV_SIZE = "skullmining_overlay_size"
 CFG_OV_ALPHA = "skullmining_overlay_alpha"
 CFG_OV_BORDER = "skullmining_overlay_border"
 CFG_OV_DIST = "skullmining_overlay_dist"
+CFG_RIG_MIN = "skullmining_rig_min_m"       # distancia de la guía de taladros (m)
 CFG_RIG_BTN = "skullmining_rig_button"     # botón del ratón para marcar taladros (v0.10.0)
 HIDE_GUI = {5, 6, 7, 8, 9, 10, 11}       # servicios, mapas, FSS, sondas, códice: el minimapa estorba
 
@@ -287,6 +288,11 @@ def _update_targets(view_items: list) -> None:
 def _load_rig_cfg() -> None:
     name = _cfg(CFG_RIG_BTN).strip() or skull_rigs.DEFAULT_BUTTON
     S.rig_vk = skull_rigs.BUTTONS.get(name, skull_rigs.BUTTONS[skull_rigs.DEFAULT_BUTTON])
+    try:
+        v = int(_cfg(CFG_RIG_MIN).strip() or skull_rigs.DEFAULT_GUIDE_M)
+    except ValueError:
+        v = skull_rigs.DEFAULT_GUIDE_M
+    S.rigs.min_m = float(max(30, min(200, v)))
 
 
 def _rig_tick(frame: tk.Frame) -> None:
@@ -583,6 +589,9 @@ def plugin_prefs(parent, cmdr: str, is_beta: bool):
     om = tk.OptionMenu(rb, S.rigbtn_var, *skull_rigs.BUTTONS)
     _style_menu(om)
     om.pack(side=tk.LEFT, padx=(6, 0))
+    nb.Label(rb, text="  Distancia entre taladros (m):").pack(side=tk.LEFT)
+    S.rigmin_var = tk.StringVar(value=_cfg(CFG_RIG_MIN).strip() or str(skull_rigs.DEFAULT_GUIDE_M))
+    _entry(rb, textvariable=S.rigmin_var, width=4).pack(side=tk.LEFT, padx=(4, 0))
     c = nb.Frame(f)
     c.grid(row=9, column=0, columnspan=2, sticky=tk.W, padx=10, pady=(4, 0))
     for i, (lbl, var) in enumerate((("Color del borde", S.ovborder_var), ("Color de las distancias", S.ovdist_var))):
@@ -613,6 +622,8 @@ def prefs_changed(cmdr: str, is_beta: bool) -> None:
             _load_ov_cfg()
         if getattr(S, "rigbtn_var", None) is not None:
             config.set(CFG_RIG_BTN, S.rigbtn_var.get())
+            v = S.rigmin_var.get().strip()
+            config.set(CFG_RIG_MIN, v if v.isdigit() else "")
             _load_rig_cfg()
         logger.info("Ajustes de Skull Mining guardados (URL %s, clave %s)",
                     "sí" if S.url_var.get().strip() else "no", "sí" if S.token_var.get().strip() else "no")

@@ -15,6 +15,8 @@ from typing import List, Optional
 import skull_sites as sitesmod
 
 MIN_SPACING_M = 47.0      # separación mínima entre taladros (medida en el juego)
+# Entre posiciones del Rhino hace falta más: el taladro queda delante del Rhino. Se cambia en Ajustes.
+DEFAULT_GUIDE_M = 60
 HOLD_S = 1.0              # pulsación larga = marcar
 DOUBLE_S = 0.45           # dos clics cortos en este tiempo = deshacer
 SHORT_MAX_S = 0.35        # un "clic" corto dura menos que esto
@@ -64,6 +66,7 @@ class RigPlanner:
         self.rigs: List[dict] = []
         self.flash: Optional[str] = None     # mensaje corto para el mapa ("Taladro 2 marcado")
         self.flash_until = 0.0
+        self.min_m = float(DEFAULT_GUIDE_M)  # distancia que exige la guía (Ajustes)
 
     def _say(self, text: str, secs: float = 2.5) -> None:
         self.flash, self.flash_until = text, time.time() + secs
@@ -105,9 +108,9 @@ class RigPlanner:
             items.append(it)
             if nearest is None or d < nearest["dist"]:
                 nearest = it
-        ok = nearest is None or nearest["dist"] >= MIN_SPACING_M
-        missing = 0.0 if ok else MIN_SPACING_M - nearest["dist"]
-        return {"rigs": items, "nearest": nearest, "ok": ok, "missing": missing, "count": len(items)}
+        ok = nearest is None or nearest["dist"] >= self.min_m
+        missing = 0.0 if ok else self.min_m - nearest["dist"]
+        return {"rigs": items, "nearest": nearest, "ok": ok, "missing": missing, "count": len(items), "min": self.min_m}
 
 
 def status_text(ev: dict) -> str:
