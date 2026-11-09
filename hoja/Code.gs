@@ -706,18 +706,21 @@ function recomputeSite_(siteId, prices) {
   var cur = sh.getRange(r, 1, 1, H.length).getValues()[0];
   var set = function (n, v) { cur[H.indexOf(n)] = v; };
   var price = prices[String(cur[H.indexOf('Nombre interno')]).toLowerCase()] || 0;
-  // Taladros del sitio: manda lo ÚLTIMO que se sabe (la sesión más reciente o la última marca del formulario),
-  // así cualquier comandante corrige a la baja volviendo y poniendo menos. Lo normal es poner el máximo posible.
-  // "Taladros corregidos" (a mano en la hoja) manda sobre todo.
+  // Taladros del sitio:
+  //  1) "Taladros corregidos" (a mano en la hoja) manda sobre todo;
+  //  2) si no, lo que un comandante marcó en el formulario (la última marca: así se corrige a la baja o al alza);
+  //  3) si nadie lo ha marcado, el conteo automático de la última sesión.
+  // El conteo de las sesiones puede equivocarse (llegar al mismo taladro por dos lados) y llega siempre después
+  // del formulario al subir el Rhino, así que no debe pisar lo que dijo una persona.
   var declared = Number(cur[H.indexOf('Taladros marcados')]) || 0;
   var declT = timeOf_(cur[H.indexOf('Taladros marcados fecha')]);
   var lastVisit = rows.slice().sort(function (a, b) { return timeOf_(a[vc('Fecha')]) - timeOf_(b[vc('Fecha')]); })
     .filter(function (x) { return Number(x[vc('Taladros')]) > 0; }).pop();
-  var lvRigs = lastVisit ? Number(lastVisit[vc('Taladros')]) : 0, lvT = lastVisit ? timeOf_(lastVisit[vc('Fecha')]) : 0;
+  var lvRigs = lastVisit ? Number(lastVisit[vc('Taladros')]) : 0;
   var maxRigs;
-  if (declared && !declT) maxRigs = Math.max(lvRigs, declared);   // marca antigua, sin fecha: se respeta lo que había
-  else if (declared && declT >= lvT) maxRigs = declared;          // la marca es lo más reciente
-  else maxRigs = lvRigs;                                           // la sesión es lo más reciente (o no hay marca)
+  if (declared && declT) maxRigs = declared;                       // marcado por un comandante: manda
+  else if (declared) maxRigs = Math.max(lvRigs, declared);         // marca antigua, sin fecha: se respeta lo que había
+  else maxRigs = lvRigs;                                           // nadie lo ha marcado: la última sesión
   var fixed = Number(cur[H.indexOf('Taladros corregidos')]) || 0;
   if (fixed > 0) maxRigs = fixed;
   var spacing = vals('Dist. mín entre taladros (m)');
